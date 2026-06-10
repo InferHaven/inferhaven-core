@@ -36,11 +36,12 @@
     }
   },
 
-  "forwardPorts": [11434, 8443, 80],
+  "forwardPorts": [11434, 8443, 80, 2222],
   "portsAttributes": {
     "11434": { "label": "Ollama API", "onAutoForward": "silent" },
     "8443":  { "label": "code-server (web IDE)", "onAutoForward": "notify" },
-    "80":    { "label": "Caddy (status + IDE redirect)", "onAutoForward": "silent" }
+    "80":    { "label": "Caddy (status + IDE redirect)", "onAutoForward": "silent" },
+    "2222":  { "label": "Workspace SSH", "onAutoForward": "silent" }
   },
 
   "postCreateCommand": "/usr/local/bin/devcontainer-setup.sh",

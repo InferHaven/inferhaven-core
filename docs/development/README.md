@@ -242,6 +242,8 @@ devcontainer up --workspace-folder . --config .devcontainer/full-stack/devcontai
 
 **GPU passthrough (full-stack only).** Uncomment the GPU block in `docker-compose.yml` exactly as documented for production — the override file deliberately does not touch it.
 
+**SSH in Codespaces.** The full-stack flavor forwards the workspace SSH port (`2222`) so you can `ssh -p 2222 haven@localhost` and exercise SSH-tunnel workflows. In **GitHub Codespaces** specifically, key-only SSH needs `AUTHORIZED_KEYS` set at create time (the codespace has no interactive way to add a key afterward), and external SSH-tunnel testing is limited by Codespaces' port-forwarding model — prefer the integrated terminal there. The slim `codespaces` flavor omits `2222` on purpose to stay light for free-tier machines.
+
 **Nested devcontainer (dev-in-prod).** Two helpers, depending on the cloned project's `devcontainer.json` shape:
 
 - **`haven devcontainer up`** — build-based projects (single `image:` / `build:` in `devcontainer.json`, no `dockerComposeFile`). Injects an explicit `workspaceMount` pointing at the translated host path and hands that to `@devcontainers/cli` against the shared docker socket.
