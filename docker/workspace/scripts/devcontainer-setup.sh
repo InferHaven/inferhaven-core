@@ -49,31 +49,37 @@ for i in $(seq 1 60); do
 done
 
 # ── Wait for model download to complete ─────────────────────────────────────
-# The codespaces flavor has a model-loader sidecar that pulls qwen2.5-coder:3b.
+# The codespaces flavor has a model-loader sidecar that pulls qwen3:4b-instruct-2507.
 # The full-stack and nested flavors pull DEFAULT_MODEL from the ollama entrypoint
-# inline; either way the model lands in /api/tags when ready.
-echo "[InferHaven] Waiting for ${MODEL} to download (may take several minutes)..."
-MAX_WAIT=900
-WAITED=0
-DOTS=0
-while [ "$WAITED" -lt "$MAX_WAIT" ]; do
-  if curl -sf http://ollama:11434/api/tags 2>/dev/null \
-       | grep -q "\"${MODEL}\"" 2>/dev/null; then
-    echo ""
-    echo "[InferHaven] Model ${MODEL} is ready."
-    break
-  fi
-  printf '.'
-  DOTS=$((DOTS + 1))
-  [ $((DOTS % 60)) -eq 0 ] && echo " ${WAITED}s"
-  sleep 5
-  WAITED=$((WAITED + 5))
-done
-echo ""
+# inline; either way the model lands in /api/tags when ready. SKIP_MODEL=1 skips
+# the (slow, ~2 GB) wait — CI and the smoke idempotency rerun set it so the
+# devcontainer claim is verified without depending on a model pull.
+MAX_WAIT="${MODEL_WAIT:-900}"
+if [ "${SKIP_MODEL:-0}" = "1" ]; then
+  echo "[InferHaven] SKIP_MODEL=1 — skipping model-download wait."
+else
+  echo "[InferHaven] Waiting for ${MODEL} to download (may take several minutes)..."
+  WAITED=0
+  DOTS=0
+  while [ "$WAITED" -lt "$MAX_WAIT" ]; do
+    if curl -sf http://ollama:11434/api/tags 2>/dev/null \
+         | grep -q "\"${MODEL}\"" 2>/dev/null; then
+      echo ""
+      echo "[InferHaven] Model ${MODEL} is ready."
+      break
+    fi
+    printf '.'
+    DOTS=$((DOTS + 1))
+    [ $((DOTS % 60)) -eq 0 ] && echo " ${WAITED}s"
+    sleep 5
+    WAITED=$((WAITED + 5))
+  done
+  echo ""
 
-if [ "$WAITED" -ge "$MAX_WAIT" ]; then
-  echo "[InferHaven] Warning: model not confirmed ready after ${MAX_WAIT}s."
-  echo "             It may still be downloading. Check ollama logs from the host."
+  if [ "$WAITED" -ge "$MAX_WAIT" ]; then
+    echo "[InferHaven] Warning: model not confirmed ready after ${MAX_WAIT}s."
+    echo "             It may still be downloading. Check ollama logs from the host."
+  fi
 fi
 
 # ── Full-stack: check code-server + Caddy ────────────────────────────────────
