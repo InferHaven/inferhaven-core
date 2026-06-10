@@ -154,7 +154,14 @@ if [ -n "${OPENROUTER_API_KEY:-}" ]; then
 fi
 
 # ── GitHub Token ──────────────────────────────────────────────────────────────
-if [ -n "${GITHUB_TOKEN:-}" ]; then
+if [ "${CODESPACES:-}" = "true" ]; then
+    # Codespaces injects a rotating, short-lived GITHUB_TOKEN and manages GitHub
+    # auth natively (gh + the Pull Requests extension). Pinning a snapshot into
+    # ~/.inferhaven would shadow the live token with a stale value and break the
+    # extension's session on every rotation ("session no longer valid"). Leave
+    # GitHub auth entirely to Codespaces here.
+    log "GitHub token: Codespaces-managed — skipping InferHaven pin."
+elif [ -n "${GITHUB_TOKEN:-}" ]; then
     log_private "Configuring GITHUB_TOKEN..."
     set_inferhaven_var "GITHUB_TOKEN" "${GITHUB_TOKEN}"
 
