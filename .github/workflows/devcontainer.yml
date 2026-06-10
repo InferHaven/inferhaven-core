@@ -60,21 +60,25 @@ jobs:
     name: smoke (${{ matrix.flavor }})
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: "20"
+          node-version: "22"
 
       - name: Install @devcontainers/cli
         run: npm install -g @devcontainers/cli
 
       - name: Bring devcontainer up
+        # SKIP_MODEL=1 so the postCreate hook doesn't block on a ~2 GB CPU pull.
+        # The model-pull path is orthogonal to the devcontainer claim and is
+        # covered by manual / Codespaces verification (see "Run smoke assertions").
         run: |
           devcontainer up \
             --workspace-folder . \
-            --config "${{ matrix.config }}"
+            --config "${{ matrix.config }}" \
+            --remote-env SKIP_MODEL=1
 
       - name: Run smoke assertions
         # SKIP_MODEL=1 because a ~2 GB CPU pull on GH-hosted runners is slow
