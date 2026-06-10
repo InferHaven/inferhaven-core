@@ -1,0 +1,127 @@
+# InferHaven — Starship prompt configuration
+#
+# Tailored for AI-assisted coding workflows.
+# Requires a Nerd Font in your terminal emulator (client-side) for icons.
+# Recommended: JetBrains Mono Nerd Font — https://www.nerdfonts.com
+#
+# Customise freely — InferHaven never overwrites this file after first start.
+
+# Two-line prompt: info on line 1, cursor on line 2.
+# Badge: shield-home icon (󰚊 nf-md-shield_home) + "IH" in bold dark cyan.
+format = "[󰚊 IH](bold #39AAAA) $directory$git_branch$git_status$python$nodejs$golang$rust$docker_context$jobs$cmd_duration$line_break$character"
+
+add_newline = true
+
+# ── Directory ────────────────────────────────────────────────────────────────
+[directory]
+style = "bold #8cdfe0"
+truncation_length = 4
+truncate_to_repo = true
+# Show home as ~ (standard)
+home_symbol = "~"
+read_only = " 󰌾"
+read_only_style = "red"
+
+# ── Git branch ───────────────────────────────────────────────────────────────
+[git_branch]
+# Nerd Font icon  = git branch; falls back to readable text on non-NF terminals.
+# The branch name is always shown — icon is purely decorative.
+symbol = " "
+format = "on [$symbol$branch(:$remote_branch)]($style) "
+style = "bold #2E86C1"
+truncation_length = 30
+truncation_symbol = "…"
+
+# ── Git status ───────────────────────────────────────────────────────────────
+[git_status]
+format = '([$all_status$ahead_behind]($style) )'
+style = "bold yellow"
+# Show counts so the numbers carry the info without relying on colour alone
+staged    = "[+$count](green)"
+modified  = "[~$count](yellow)"
+deleted   = "[-$count](red)"
+untracked = "[·$count](dim white)"
+ahead     = "[⇡$count](cyan)"
+behind    = "[⇣$count](cyan)"
+diverged  = "[⇡$ahead_count⇣$behind_count](yellow)"
+
+# ── Python ───────────────────────────────────────────────────────────────────
+# Shown when a virtualenv is active or .python-version / pyproject.toml present.
+[python]
+symbol = " "
+format = '[\[py $version\]]($style) '
+style = "#3772a2"
+detect_extensions = ["py"]
+detect_files = ["pyproject.toml", "requirements.txt", ".python-version", "Pipfile"]
+
+# ── Node.js ──────────────────────────────────────────────────────────────────
+[nodejs]
+symbol = "󰎙 "
+format = '[\[node $version\]]($style) '
+style = "#68a063"
+detect_files = ["package.json", ".nvmrc", ".node-version"]
+
+# ── Go ───────────────────────────────────────────────────────────────────────
+[golang]
+symbol = " "
+format = '[\[go $version\]]($style) '
+style = "#79d4fd"
+detect_files = ["go.mod"]
+
+# ── Rust ─────────────────────────────────────────────────────────────────────
+[rust]
+symbol = " "
+format = '[\[rs $version\]]($style) '
+style = "#f05400"
+detect_files = ["Cargo.toml"]
+
+# ── Background jobs ───────────────────────────────────────────────────────────
+# Surfaces 'haven pullback' workers — shows count of background shell jobs.
+[jobs]
+symbol = "  "
+format = "[$symbol$number]($style) "
+style = "bold yellow"
+threshold = 1
+symbol_threshold = 1
+number_threshold = 2
+
+# ── Command duration ─────────────────────────────────────────────────────────
+# Show elapsed time for commands that take more than 2 seconds — essential
+# for AI inference, model downloads, and build workflows.
+[cmd_duration]
+min_time = 2_000
+format = "[took $duration]($style) "
+style = "yellow"
+show_milliseconds = false
+
+# ── Prompt character ─────────────────────────────────────────────────────────
+[character]
+success_symbol = "[❯](bold green)"
+error_symbol   = "[❯](bold red)"
+vimcmd_symbol  = "[❮](bold green)"
+
+# ── Docker context ───────────────────────────────────────────────────────────
+# Only shown when the current directory contains Docker files (Dockerfile,
+# docker-compose.yml, etc.) — useful for docker-in-docker workflows.
+# Never shows just because inferhaven itself runs in Docker.
+[docker_context]
+symbol = " "
+format = '[\[$symbol$context\]]($style) '
+style = "#1d62ed"
+only_with_files = true
+detect_files = ["Dockerfile", "docker-compose.yml", "docker-compose.yaml", ".dockerignore"]
+disabled = false
+
+# ── Disabled modules (noisy in container / SSH environment) ──────────────────
+
+[package]
+disabled = true
+
+[container]
+disabled = true
+
+[aws]
+disabled = true
+
+[gcloud]
+disabled = true

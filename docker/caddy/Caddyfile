@@ -1,0 +1,123 @@
+# InferHaven — Caddy Reverse Proxy Configuration (reference)
+#
+# This file is NOT used directly at runtime. The actual Caddyfile is generated
+# by docker/caddy/entrypoint.sh based on DOMAIN, TLS_MODE, and ALLOWED_IPS.
+# This file exists as a readable reference for the routing rules.
+#
+# TLS mode is auto-selected from DOMAIN:
+#   localhost / bare IPv4 / bare IPv6 → plain HTTP (no TLS)
+#   *.lan, *.local, *.home, etc.      → Caddy internal self-signed CA
+#   public domain                     → Let's Encrypt ACME
+#
+# Override with TLS_MODE=off|internal|acme in .env.
+#
+# HTTP mode (TLS_MODE=off) binds :80 on all interfaces — any hostname or IP
+# that reaches the machine is served. Access control is ALLOWED_IPS only.
+# TLS modes bind to DOMAIN for cert provisioning/SNI.
+#
+# IP allowlist: set ALLOWED_IPS=192.168.1.0/24 in .env to restrict access.
+# Supports multiple CIDRs space-separated: ALLOWED_IPS=192.168.1.0/24 10.0.0.0/8
+
+{$DOMAIN:localhost} {
+	# IP allowlist — handle fires before other handlers (mutual exclusion).
+	# error 403 triggers handle_errors which serves the styled denied page.
+	# Apply changes: docker compose up -d caddy  (NOT restart — restart keeps old env vars)
+	@blocked {
+		not remote_ip {$ALLOWED_IPS:0.0.0.0/0 ::/0}
+	}
+	handle @blocked {
+		error 403
+	}
+
+	handle_errors 403 {
+		root * /srv
+		rewrite * /denied.html
+		file_server
+	}
+
+	# Startup timestamp (used by status page for true uptime display)
+	handle /startup.json {
+		root * /srv
+		file_server
+	}
+
+	# Health check / status dashboard
+	handle /status {
+		root * /srv
+		rewrite * /status.html
+		file_server
+	}
+
+	# VS Code in browser.
+	#
+	# Serve ide.html for /ide and /ide/ (no folder param). ide.html is rendered
+	# at container start from a template with DEFAULT_WORKSPACE substituted in
+	# (see entrypoint.sh); it runs SW cleanup then JS-redirects to
+	# /ide/?folder=<workspace> so handle_path /ide* proxies it to code-server
+	# with the folder already in the URL — no bare-domain redirect is ever
+	# issued, the stale VS Code SW at scope "/" is cleared, and Continue's
+	# @file walker stays inside the project tree (not the filesystem root).
+	@ideNoFolder {
+		path /ide /ide/
+		not query folder=*
+	}
+	handle @ideNoFolder {
+		root * /srv
+		rewrite * /ide.html
+		file_server
+	}
+
+	# handle_path strips /ide before proxying; X-Forwarded-Prefix tells VS Code
+	# to prefix generated asset URLs so /ide/static/... routes back here.
+	# Service-Worker-Allowed restricts the VS Code SW scope to /ide/ so it
+	# cannot intercept bare-domain requests.
+	handle_path /ide* {
+		reverse_proxy code-server:{$CODE_SERVER_PORT:8443} {
+			header_up X-Forwarded-Prefix /ide
+			header_down Service-Worker-Allowed /ide/
+		}
+	}
+
+	# Ollama API (for IDE extensions, CLI tools, coding assistants)
+	# /api* matches /api, /api/, /api/tags, /api/generate, etc.
+	handle /api* {
+		reverse_proxy ollama:{$OLLAMA_PORT:11434}
+	}
+
+	# OpenAI-compatible endpoint (many tools expect /v1/...)
+	handle /v1* {
+		reverse_proxy ollama:{$OLLAMA_PORT:11434}
+	}
+
+	# System metrics for the status page resources section
+	handle /metrics.json {
+		reverse_proxy workspace:9091
+	}
+
+	# code-server on older setups redirects the initial /ide request to
+	# /?folder=<workspace> on the bare domain. Serve ide.html here so the
+	# JS can redirect to /ide?folder=<workspace> and handle_path /ide* picks it up.
+	@codeServerFolderRedir {
+		path /
+		query folder=*
+	}
+	handle @codeServerFolderRedir {
+		root * /srv
+		rewrite * /ide.html
+		file_server
+	}
+
+	# Bare / serves the status dashboard directly (no redirect round trip).
+	handle / {
+		root * /srv
+		rewrite * /status.html
+		file_server
+	}
+
+	# Default: status dashboard for any other unmatched path
+	handle {
+		root * /srv
+		rewrite * /status.html
+		file_server
+	}
+}

@@ -1,0 +1,97 @@
+###############################################################################
+# InferHaven Core — GitHub Codespaces Compose
+#
+# Slimmed-down stack for running inside GitHub Codespaces.
+# No GPU (Codespaces doesn't support it), no Caddy (Codespaces handles
+# port forwarding), no SSH server (Codespaces provides terminal access).
+#
+# This file is referenced by .devcontainer/devcontainer.json.
+###############################################################################
+
+name: inferhaven-codespaces
+
+services:
+  # ── Ollama (CPU-only in Codespaces) ─────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_ORIGINS=*
+      # CPU-only backend: ggml threadpool spins at ~100%/core while a model is
+      # resident in keep-alive. Drop to 30s so idle CPU doesn't roast the
+      # Codespace. Reload from page cache is sub-second for small models.
+      # Override in .env (e.g. OLLAMA_KEEP_ALIVE=5m) to restore upstream default.
+      - OLLAMA_KEEP_ALIVE=${OLLAMA_KEEP_ALIVE:-30s}
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - inferhaven
+
+  # ── Model Loader (smaller model for Codespaces constraints) ─────────────
+  model-loader:
+    image: curlimages/curl:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: "no"
+    entrypoint: >
+      sh -c '
+        echo "InferHaven: Pulling qwen3:4b-instruct-2507 for Codespaces (CPU-optimized, ~2 GB)..."
+        if curl -f http://ollama:11434/api/pull \
+             -H "Content-Type: application/json" \
+             -d "{\"name\": \"qwen3:4b-instruct-2507-q4_K_M\"}" 2>&1; then
+          echo ""
+          echo "InferHaven: qwen3:4b-instruct-2507-q4_K_M ready."
+        else
+          echo ""
+          echo "InferHaven: ERROR — model pull failed. Check ollama logs: docker logs inferhaven-ollama"
+          exit 1
+        fi
+      '
+    networks:
+      - inferhaven
+
+  # ── Workspace (no SSH server needed, Codespaces provides terminal) ──────
+  workspace:
+    build:
+      context: ./docker/workspace
+      dockerfile: Dockerfile
+    volumes:
+      - workspace_home:/home/haven
+      - .:/home/haven/projects/inferhaven-core
+      # Mirror main compose: makes the project's compose file + .env visible
+      # to the haven CLI under a stable path. Without this, `haven doctor`
+      # reports "Compose file not found" inside the codespaces flavor.
+      - .:/opt/inferhaven:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      - HAVEN_USER=haven
+      - DEFAULT_MODEL=qwen3:4b-instruct-2507-q4_K_M
+      - HAVEN_AUTO_TUNE=0
+      # Matches main compose convention — haven CLI uses this to locate the
+      # active compose file (any docker-compose*.yml under here).
+      - INFERHAVEN_DIR=/opt/inferhaven
+      # Auto-install opencode + aider so the devcontainer/Codespaces experience ships
+      # working local-tuned assistants out of the box.
+      - INSTALL_ASSISTANTS=opencode,aider
+    depends_on:
+      ollama:
+        condition: service_healthy
+    command: ["sleep", "infinity"]
+    networks:
+      - inferhaven
+
+volumes:
+  ollama_data:
+  workspace_home:
+
+networks:
+  inferhaven:
+    driver: bridge

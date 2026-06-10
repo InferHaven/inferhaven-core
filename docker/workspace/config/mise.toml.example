@@ -1,0 +1,20 @@
+# mise per-project tool versions — copy this file as `.mise.toml` in any
+# project root. Fields go under [tools]; bare top-level entries (`node = "20"`)
+# are ignored by mise and produce a "unknown field" warning.
+#
+# https://mise.jdx.dev/configuration.html
+
+[tools]
+# Languages
+node    = "20"
+python  = "3.12"
+go      = "1.24"
+
+# CLIs (uncomment as needed)
+# ripgrep = "latest"
+# bun     = "latest"
+# deno    = "latest"
+
+[env]
+# Project-scoped env vars (similar to direnv)
+# NODE_ENV = "development"

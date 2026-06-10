@@ -1,0 +1,47 @@
+# InferHaven build context excludes — secrets, VCS, transient artifacts.
+#
+# Most relevant: keep .env out of the workspace image. The image is built by
+# every devcontainer client + CI; baking a contributor's .env into a layer
+# would publish their API keys.
+
+# Secrets (.env.example is explicitly retained — public template).
+.env
+.env.*
+!.env.example
+
+# Exported Caddy root CA (haven caddy cert writes this into the repo root).
+caddy-root.crt
+*.pem
+*.key
+*.crt
+!docker/caddy/*.crt
+!docker/caddy/*.pem
+
+# VCS + tool metadata
+.git
+.gitignore
+.github
+.devpod
+.vscode
+.idea
+
+# Build / runtime artifacts
+node_modules
+*.log
+*.tmp
+*.swp
+.DS_Store
+
+# Docs we don't need at build time (the build only needs docker/, scripts/,
+# config/ — Dockerfile picks specific files).
+docs
+CONTRIBUTING.md
+LICENSE
+NOTICE
+
+# Devcontainer config — referenced by devcontainer CLIs (which use this
+# .dockerignore against the BUILD context, not the project root). The
+# workspace Dockerfile lives at docker/workspace/Dockerfile with context
+# ./docker/workspace, so .devcontainer is already outside the build context,
+# but keep the exclusion explicit for defense in depth.
+.devcontainer

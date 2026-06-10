@@ -1,0 +1,319 @@
+###############################################################################
+# InferHaven Core — Docker Compose Stack
+# A plug-and-play private AI coding server.
+#
+# Usage:
+#   cp .env.example .env        # configure your settings
+#   docker compose up -d        # start everything
+#   docker compose logs -f      # watch logs
+#
+# Services:
+#   ollama       — AI model inference server (GPU auto-detected)
+#   code-server  — VS Code in the browser
+#   workspace    — Terminal-first dev environment (SSH/tmux)
+#   caddy        — Reverse proxy with automatic HTTPS
+#
+# Documentation: https://github.com/InferHaven/inferhaven-core
+###############################################################################
+
+name: inferhaven
+
+services:
+  # ─────────────────────────────────────────────────────────────────────────
+  # Ollama — AI Model Inference Server
+  # Exposes an OpenAI-compatible API on port 11434.
+  # ─────────────────────────────────────────────────────────────────────────
+  ollama:
+    image: ${OLLAMA_IMAGE:-ollama/ollama:latest}
+    container_name: inferhaven-ollama
+    restart: unless-stopped
+    #ports:
+    #  - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_ORIGINS=*
+      - DEFAULT_MODEL=${DEFAULT_MODEL:-qwen3.5:9b}
+      # Flash attention: faster inference + lower peak VRAM at long context lengths.
+      # Safe on all modern GPUs (CUDA, ROCm, Metal). Disable only if you see NaN outputs.
+      - OLLAMA_FLASH_ATTENTION=${OLLAMA_FLASH_ATTENTION:-1}
+      # KV cache quantization: reduces KV cache VRAM without changing model weights.
+      #   q8_0 — ~50% less KV cache VRAM, negligible quality impact (default)
+      #   q4_0 — ~75% less KV cache VRAM, minimal quality impact
+      #   f16  — full precision (Ollama upstream default)
+      - OLLAMA_KV_CACHE_TYPE=${OLLAMA_KV_CACHE_TYPE:-q8_0}
+    #  - NVIDIA_VISIBLE_DEVICES=all
+    #  - OLLAMA_VULKAN=1
+    #  - HSA_OVERRIDE_GFX_VERSION=${AMD_GFX_VERSION:-10.3.0}
+    #  - ROCR_VISIBLE_DEVICES=${AMD_VISIBLE_DEVICES:-0}
+    #deploy:
+    #  resources:
+    #    reservations:
+    #      devices:
+    #        - driver: nvidia
+    #          count: all
+    #          capabilities: [gpu]
+    # device passthrough and user groups needed for AMD GPU (ROCm / Vulkan):
+    # group_add uses numeric GIDs — the Ollama image has no /etc/group entries for
+    # these groups. Defaults match Ubuntu/Debian (video=44, render=103). If yours
+    # differ, check with: getent group video render
+    #devices:
+    #  - /dev/kfd
+    #  - /dev/dri
+    #group_add:
+    #  - "44"    # video
+    #  - "103"   # render
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        ollama serve &
+        pid=$$!
+        until ollama list >/dev/null 2>&1; do sleep 1; done
+        echo "InferHaven: Pulling $DEFAULT_MODEL..."
+        ollama pull "$DEFAULT_MODEL" \
+          && echo "InferHaven: Model $DEFAULT_MODEL ready." \
+          || echo "InferHaven: Pull failed — server still running." >&2
+        wait $$pid
+    networks:
+      - inferhaven
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Workspace — Terminal-First Dev Environment
+  # Ubuntu-based container with tmux, zsh, neovim, Docker CLI, and
+  # dev tooling. This is the primary SSH target for terminal users.
+  # ─────────────────────────────────────────────────────────────────────────
+  workspace:
+    build:
+      context: ./docker/workspace
+      dockerfile: Dockerfile
+    container_name: inferhaven-workspace
+    restart: unless-stopped
+    stop_grace_period: 30s
+    user: root
+    hostname: inferhaven
+    # env_file passes EVERY .env entry into the container, including dynamic
+    # per-user vars like AUTHORIZED_KEYS_ALICE that we can't enumerate in the
+    # `environment:` block below. The explicit `environment:` entries still
+    # win — they override anything from .env with the same key.
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      - "${SSH_PORT:-2222}:22"
+      # mosh — connection-resilient SSH (UDP). Set MOSH_PORTS= to disable.
+      # Default range: 60000-60010 (10 simultaneous mosh sessions).
+      - "${MOSH_PORTS:-60000-60010}:60000-60010/udp"
+    volumes:
+      # workspace_home is mounted at /home so HAVEN_EXTRA_USERS (alice, bob, …)
+      # get persistent home dirs alongside haven. Existing single-user volumes
+      # need a one-time migration — see scripts/haven-migrate-home.sh.
+      - workspace_home:/home
+      - projects:/home/haven/projects
+      - workspace_apt_cache:/var/cache/apt/archives
+      - workspace_apt_lists:/var/lib/apt/lists
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Mount the project directory so the in-container 'haven' CLI can run
+      # 'docker compose' commands against the correct compose file and build
+      # context. Read-only — the container never needs to write to it.
+      - .:/opt/inferhaven:ro
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      - HAVEN_USER=${HAVEN_USER:-haven}
+      - AUTHORIZED_KEYS=${AUTHORIZED_KEYS:-}
+      # haven CLI: compose file location inside the container
+      - INFERHAVEN_DIR=/opt/inferhaven
+      # haven CLI: host-side values for display only (API calls always use
+      # the internal OLLAMA_HOST above — these never affect connectivity)
+      - DOMAIN=${DOMAIN:-localhost}
+      - SSH_PORT=${SSH_PORT:-2222}
+      - HTTP_PORT=${HTTP_PORT:-80}
+      - HTTPS_PORT=${HTTPS_PORT:-443}
+      - OLLAMA_PORT=${OLLAMA_PORT:-11434}
+      # Default model — used by 'haven chat' and opencode auto-config fallback
+      - DEFAULT_MODEL=${DEFAULT_MODEL:-qwen2.5-coder:7b}
+      # Coding assistant auto-install
+      - INSTALL_ASSISTANTS=${INSTALL_ASSISTANTS:-}
+      # Auto-tune models after haven pull (sets num_ctx, stop tokens, etc.)
+      - HAVEN_AUTO_TUNE=${HAVEN_AUTO_TUNE:-1}
+      # API keys — injected into ~/.inferhaven at startup
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      # Assistant behaviour
+      - CLAUDE_CODE_DISABLE_TELEMETRY=${CLAUDE_CODE_DISABLE_TELEMETRY:-true}
+      - OPENCODE_DEFAULT_MODEL=${OPENCODE_DEFAULT_MODEL:-}
+      - TMUX_RESURRECT_RETAIN_DAYS=${TMUX_RESURRECT_RETAIN_DAYS:-7}
+      # Multi-user (P3): comma-separated list of additional usernames provisioned
+      # alongside 'haven'. Each gets a home dir + zsh shell. Sudo via
+      # HAVEN_EXTRA_USERS_SUDO=<comma-separated-subset>.
+      # SSH keys per user: AUTHORIZED_KEYS_<USERNAME_UPPERCASE>.
+      - HAVEN_EXTRA_USERS=${HAVEN_EXTRA_USERS:-}
+      - HAVEN_EXTRA_USERS_SUDO=${HAVEN_EXTRA_USERS_SUDO:-}
+      # Dotfiles bootstrap: clones DOTFILES_REPO on first boot, runs install.sh.
+      - DOTFILES_REPO=${DOTFILES_REPO:-}
+    depends_on:
+      ollama:
+        condition: service_healthy
+    networks:
+      - inferhaven
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Code Server — VS Code in the Browser
+  # For developers who prefer a GUI IDE alongside terminal access.
+  # ─────────────────────────────────────────────────────────────────────────
+  code-server:
+    # Custom image that bakes custom-cont-init.d/*.sh into the linuxserver
+    # code-server base (see docker/code-server/Dockerfile). The previous
+    # service bound ./docker/code-server/custom-cont-init.d:/custom-cont-init.d
+    # at runtime; under nested compose that bind silently failed (inner-path
+    # sent to outer daemon → empty stub created on outer host → workspace's
+    # `.:/home/haven/projects/inferhaven-core` then re-bound the partial stub,
+    # surfacing as a phantom `docker/code-server/` dir inside the nested
+    # workspace). Image-bake removes the bind entirely.
+    build:
+      context: ./docker/code-server
+    image: inferhaven/code-server:local
+    container_name: inferhaven-code-server
+    restart: unless-stopped
+    #ports:
+    #  - "${CODE_SERVER_PORT:-8443}:8443"
+    volumes:
+      # Mount the workspace_home volume's "haven" subdir at /config/workspace —
+      # alice/bob homes (now siblings of haven/ in workspace_home) stay private
+      # to the workspace container. Requires Compose ≥ 2.20.
+      - type: volume
+        source: workspace_home
+        target: /config/workspace
+        volume:
+          subpath: haven
+      - projects:/config/workspace/projects
+      - code_server_data:/config
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ:-UTC}
+      # Pin HOME so child processes (extension hosts) don't fall back to /root,
+      # which is unreadable by abc:1000 — surfaces as `EACCES: scandir '/root'`
+      # in extension activation (Continue, etc.).
+      - HOME=/config
+      - PASSWORD=${CODE_SERVER_PASSWORD:-inferhaven}
+      - SUDO_PASSWORD=${CODE_SERVER_PASSWORD:-inferhaven}
+      - DEFAULT_WORKSPACE=/config/workspace/projects
+      # Disable bundled Copilot extensions — they crash with PendingMigrationError
+      # (navigator global conflict in newer Node.js) causing 4 GB heap OOM on the extension host.
+      - ARGS=--disable-extension GitHub.copilot --disable-extension GitHub.copilot-chat
+    depends_on:
+      - workspace
+    networks:
+      - inferhaven
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Caddy — Reverse Proxy with Automatic HTTPS
+  # Routes traffic to code-server and Ollama API.
+  # In local/dev mode, serves over HTTP. With a domain, auto-provisions
+  # Let's Encrypt certificates.
+  # ─────────────────────────────────────────────────────────────────────────
+  caddy:
+    # Custom image that bakes entrypoint.sh + static templates into the layer
+    # graph (see docker/caddy/Dockerfile). The previous compose service bound
+    # those files from ./docker/caddy/* at runtime, which silently failed
+    # under nested compose because the inner compose-CLI sent inner paths to
+    # the outer docker daemon — daemon couldn't see them, mount sources came
+    # up empty, caddy exit-0 restart-looped. Image-bake removes all four
+    # relative-path binds.
+    build:
+      context: ./docker/caddy
+    image: inferhaven/caddy:local
+    container_name: inferhaven-caddy
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      - DOMAIN=${DOMAIN:-localhost}
+      - TLS_MODE=${TLS_MODE:-auto}
+      - CODE_SERVER_PORT=8443
+      - OLLAMA_PORT=11434
+      # Default workspace folder the browser should land on. Must match
+      # DEFAULT_WORKSPACE in the code-server service — otherwise Continue's
+      # @file walker will recurse from the wrong root and hit EACCES on /root.
+      - DEFAULT_WORKSPACE=${DEFAULT_WORKSPACE:-/config/workspace/projects}
+      # Restrict access by IP: set ALLOWED_IPS=192.168.1.0/24 in .env.
+      # Leave empty (default) to allow all connections.
+      - ALLOWED_IPS=${ALLOWED_IPS:-}
+    depends_on:
+      - code-server
+      - ollama
+    networks:
+      - inferhaven
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Haven Agent — InferHaven Cloud Connector (optional)
+  #
+  # Maintains an outbound WebSocket connection to the InferHaven Cloud relay
+  # so the dashboard can manage this server remotely (models, SSH keys,
+  # metrics, logs). Zero impact on self-hosted setups — the service only
+  # starts when the `cloud` Docker Compose profile is active.
+  #
+  # To enable:
+  #   1. Set HAVEN_CONTROL_URL, HAVEN_SERVER_ID, HAVEN_AGENT_TOKEN in .env
+  #   2. docker compose --profile cloud up -d
+  #
+  # The agent initiates ALL connections outbound — no inbound ports are opened.
+  # ─────────────────────────────────────────────────────────────────────────
+  haven-agent:
+    image: inferhaven/haven-agent:latest
+    container_name: inferhaven-haven-agent
+    restart: unless-stopped
+    profiles: ["cloud"]
+    environment:
+      - HAVEN_CONTROL_URL=${HAVEN_CONTROL_URL:-}
+      - HAVEN_SERVER_ID=${HAVEN_SERVER_ID:-}
+      - HAVEN_AGENT_TOKEN=${HAVEN_AGENT_TOKEN:-}
+      - OLLAMA_HOST=http://ollama:11434
+      - INFERHAVEN_DIR=/opt/inferhaven
+    volumes:
+      # Docker socket access — lets the agent run `docker compose` commands
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Mount the project directory read-only (for docker compose context)
+      - .:/opt/inferhaven:ro
+    depends_on:
+      ollama:
+        condition: service_healthy
+    networks:
+      - inferhaven
+
+volumes:
+  ollama_data:
+    name: inferhaven_ollama_data
+  workspace_home:
+    name: inferhaven_workspace_home
+  projects:
+    name: inferhaven_projects
+  code_server_data:
+    name: inferhaven_code_server_data
+  caddy_data:
+    name: inferhaven_caddy_data
+  caddy_config:
+    name: inferhaven_caddy_config
+  workspace_apt_cache:
+    name: inferhaven_workspace_apt_cache
+  workspace_apt_lists:
+    name: inferhaven_workspace_apt_lists
+
+networks:
+  inferhaven:
+    name: inferhaven
+    driver: bridge

@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>InferHaven — Status</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1419; color: #e1e8ed; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+  .container { max-width: 960px; width: 100%; padding: 24px; }
+  .grid-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .grid-row .card { margin-bottom: 0; }
+  @media (max-width: 680px) { .grid-row { grid-template-columns: 1fr; } }
+  #models-container { max-height: 220px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #2a3a4a transparent; }
+  #models-container::-webkit-scrollbar { width: 4px; }
+  #models-container::-webkit-scrollbar-track { background: transparent; }
+  #models-container::-webkit-scrollbar-thumb { background: #2a3a4a; border-radius: 2px; }
+  .header { text-align: center; margin-bottom: 28px; }
+  .header h1 { font-size: 28px; font-weight: 600; color: #fff; }
+  .header p { font-size: 14px; color: #8899a6; margin-top: 4px; }
+  .nav { display: flex; justify-content: center; gap: 12px; margin-top: 14px; }
+  .nav a { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; padding: 7px 16px; border-radius: 20px; text-decoration: none; transition: all 0.15s; }
+  .nav a.primary { background: #2e86c1; color: #fff; }
+  .nav a.primary:hover { background: #3498d8; }
+  .nav a.secondary { background: #1a2332; border: 1px solid #2a3a4a; color: #8899a6; }
+  .nav a.secondary:hover { border-color: #2e86c1; color: #2e86c1; }
+  .card { background: #1a2332; border: 1px solid #2a3a4a; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+  .card h2 { font-size: 13px; font-weight: 500; color: #8899a6; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px; }
+  .row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #2a3a4a; }
+  .row:last-child { border-bottom: none; }
+  .label { font-size: 14px; color: #c8d6e0; }
+  .value { font-size: 14px; font-weight: 500; }
+  .status { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .dot.green  { background: #17bf63; box-shadow: 0 0 8px rgba(23,191,99,0.4); }
+  .dot.red    { background: #e0245e; box-shadow: 0 0 8px rgba(224,36,94,0.4); }
+  .dot.yellow { background: #ffad1f; box-shadow: 0 0 8px rgba(255,173,31,0.4); }
+  .dot.gray   { background: #657786; }
+  .dot.blue   { background: #2e86c1; box-shadow: 0 0 8px rgba(46,134,193,0.3); }
+  .ok   { color: #17bf63; }
+  .err  { color: #e0245e; }
+  .warn { color: #ffad1f; }
+  .muted { color: #657786; }
+  .info  { color: #2e86c1; }
+  .model-list { list-style: none; padding: 0; }
+  .model-list li { padding: 6px 0; font-size: 13px; color: #c8d6e0; display: flex; justify-content: space-between; }
+  .model-list li .size { color: #657786; }
+  .footer { text-align: center; margin-top: 24px; font-size: 12px; color: #657786; }
+  .footer a { color: #2e86c1; text-decoration: none; }
+  .loading { color: #657786; font-style: italic; font-size: 13px; }
+  .badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 500; }
+  .badge.gpu  { background: rgba(46,134,193,0.2); color: #2e86c1; }
+  .badge.cpu  { background: rgba(101,119,134,0.2); color: #8899a6; }
+  .refresh-btn { background: none; border: 1px solid #2a3a4a; color: #8899a6; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12px; transition: all 0.2s; }
+  .refresh-btn:hover { border-color: #2e86c1; color: #2e86c1; }
+  .bar-wrap { flex: 1; margin-left: 16px; max-width: 160px; }
+  .bar-bg { background: #0f1419; border-radius: 4px; height: 6px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 4px; transition: width 0.4s; }
+  .bar-fill.low  { background: #17bf63; }
+  .bar-fill.mid  { background: #ffad1f; }
+  .bar-fill.high { background: #e0245e; }
+  .bar-label { font-size: 12px; color: #8899a6; margin-top: 3px; text-align: right; }
+  .resources-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #2a3a4a; }
+  .resources-row:last-child { border-bottom: none; }
+  .resources-right { display: flex; align-items: center; gap: 10px; }
+  .ct-table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+  .ct-table td { font-size: 13px; padding: 5px 0; }
+  .ct-table td:last-child { text-align: right; color: #8899a6; }
+  .ct-name { color: #c8d6e0; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>InferHaven</h1>
+    <p>A safe haven for AI inference</p>
+    <div class="nav">
+      <a href="/ide" class="primary">Launch IDE</a>
+      <a href="/api/tags" class="secondary">API</a>
+      <a href="/v1/models" class="secondary">OpenAI API</a>
+    </div>
+  </div>
+
+  <div class="grid-row">
+    <div class="card">
+      <h2>Services</h2>
+      <div class="row">
+        <span class="label">Ollama (AI Engine)</span>
+        <span class="status" id="ollama-status"><span class="dot gray"></span> <span class="loading">checking...</span></span>
+      </div>
+      <div class="row">
+        <span class="label">Code Server (Web IDE)</span>
+        <span class="status" id="code-status"><span class="dot gray"></span> <span class="loading">checking...</span></span>
+      </div>
+      <div class="row">
+        <span class="label">Workspace (SSH)</span>
+        <span class="status" id="ssh-status"><span class="dot gray"></span> <span class="loading">checking...</span></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 id="models-header">AI Models</h2>
+      <div id="models-container">
+        <span class="loading">Loading models...</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-row">
+  <div class="card">
+    <h2>Resources</h2>
+    <div class="resources-row">
+      <span class="label">CPU</span>
+      <div class="resources-right">
+        <span class="value muted" id="cpu-val">—</span>
+        <div class="bar-wrap">
+          <div class="bar-bg"><div class="bar-fill low" id="cpu-bar" style="width:0%"></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="resources-row">
+      <span class="label">Memory</span>
+      <div class="resources-right">
+        <span class="value muted" id="mem-val">—</span>
+        <div class="bar-wrap">
+          <div class="bar-bg"><div class="bar-fill low" id="mem-bar" style="width:0%"></div></div>
+          <div class="bar-label" id="mem-detail"></div>
+        </div>
+      </div>
+    </div>
+    <div class="resources-row">
+      <span class="label">Disk</span>
+      <div class="resources-right">
+        <span class="value muted" id="disk-val">—</span>
+        <div class="bar-wrap">
+          <div class="bar-bg"><div class="bar-fill low" id="disk-bar" style="width:0%"></div></div>
+          <div class="bar-label" id="disk-detail"></div>
+        </div>
+      </div>
+    </div>
+    <div class="resources-row" id="gpu-row" style="display:none;">
+      <span class="label">GPU</span>
+      <div class="resources-right">
+        <span class="value muted" id="gpu-val">—</span>
+        <div class="bar-wrap">
+          <div class="bar-bg"><div class="bar-fill low" id="gpu-bar" style="width:0%"></div></div>
+          <div class="bar-label" id="gpu-detail"></div>
+        </div>
+      </div>
+    </div>
+    <div class="resources-row" style="align-items:flex-start;">
+      <span class="label">Containers</span>
+      <div style="text-align:right;">
+        <table class="ct-table" id="containers-table">
+          <tr><td colspan="2"><span class="loading">loading...</span></td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>System</h2>
+    <div class="row">
+      <span class="label">Compute</span>
+      <span class="value" id="compute-type"><span class="loading">detecting...</span></span>
+    </div>
+    <div class="row">
+      <span class="label">InferHaven Version</span>
+      <span class="value muted">0.1.0</span>
+    </div>
+    <div class="row">
+      <span class="label">Stack Uptime</span>
+      <span class="value muted" id="uptime">—</span>
+    </div>
+    <div class="row">
+      <span class="label">Last checked</span>
+      <span class="value muted" id="last-check">—</span>
+    </div>
+  </div>
+  </div><!-- end grid-row (Resources + System) -->
+
+  <div style="text-align: center; margin-top: 16px;">
+    <button class="refresh-btn" onclick="checkAll()">Refresh</button>
+  </div>
+
+  <div class="footer">
+    <p>InferHaven — Your AI. Your server. Your haven.</p>
+    <p style="margin-top: 4px;"><a href="https://inferhaven.com">inferhaven.com</a> · <a href="https://github.com/InferHaven/inferhaven-core">GitHub</a></p>
+  </div>
+</div>
+
+<script>
+  // Unregister any stale VS Code service worker whose scope covers the bare domain
+  // (scope: "/"). Such a SW was registered when /ide first loaded without the
+  // correct base-path and intercepts /?folder=/ and / requests, showing blank pages.
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(regs => {
+      for (const reg of regs) {
+        if (!reg.scope.includes('/ide/')) reg.unregister();
+      }
+    });
+  }
+
+  let stackStartTime = null;
+
+  // ── Uptime ────────────────────────────────────────────────────────────────
+  async function loadStartupTime() {
+    try {
+      const data = await fetch('/startup.json', { signal: AbortSignal.timeout(3000) }).then(r => r.json());
+      stackStartTime = new Date(data.startedAt).getTime();
+    } catch { /* startup.json not yet available — leave as null */ }
+  }
+
+  function formatUptime(ms) {
+    const s = Math.floor(ms / 1000);
+    if (s < 60) return `${s}s`;
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m}m ${s % 60}s`;
+    const h = Math.floor(m / 60);
+    const rm = m % 60;
+    if (h < 24) return `${h}h ${rm}m`;
+    const d = Math.floor(h / 24);
+    return `${d}d ${h % 24}h`;
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function setStatus(id, ok, text) {
+    const el = document.getElementById(id);
+    const dotClass  = ok === true ? 'green' : ok === false ? 'red' : ok === 'gray' ? 'gray' : ok === 'blue' ? 'blue' : 'yellow';
+    const textClass = ok === true ? 'ok'    : ok === false ? 'err' : ok === 'gray' ? 'muted': ok === 'blue' ? 'info' : 'warn';
+    el.innerHTML = `<span class="dot ${dotClass}"></span> <span class="${textClass}">${text}</span>`;
+  }
+
+  function formatSize(bytes) {
+    const gb = bytes / 1024 / 1024 / 1024;
+    return gb >= 1 ? `${gb.toFixed(1)} GB` : `${(bytes / 1024 / 1024).toFixed(0)} MB`;
+  }
+
+  function fmtMB(mb) {
+    return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${mb} MB`;
+  }
+
+  function barClass(pct) {
+    return pct >= 85 ? 'high' : pct >= 60 ? 'mid' : 'low';
+  }
+
+  function setBar(barId, valId, pct, label) {
+    const bar = document.getElementById(barId);
+    const val = document.getElementById(valId);
+    bar.style.width = Math.min(pct, 100) + '%';
+    bar.className = `bar-fill ${barClass(pct)}`;
+    if (val) val.textContent = `${pct.toFixed(1)}%`;
+    if (label) {
+      const det = document.getElementById(barId.replace('-bar', '-detail'));
+      if (det) det.textContent = label;
+    }
+  }
+
+  // ── Ollama + GPU ──────────────────────────────────────────────────────────
+  async function checkOllama() {
+    try {
+      const resp = await fetch('/api/tags', { signal: AbortSignal.timeout(5000) });
+      if (!resp.ok) throw new Error();
+      const data = await resp.json();
+      setStatus('ollama-status', true, 'running');
+
+      // Models list
+      const container = document.getElementById('models-container');
+      if (data.models && data.models.length > 0) {
+        document.getElementById('models-header').textContent = `AI Models (${data.models.length})`;
+        const items = data.models.map(m =>
+          `<li><span>${m.name}</span><span class="size">${formatSize(m.size)}</span></li>`
+        ).join('');
+        container.innerHTML = `<ul class="model-list">${items}</ul>`;
+      } else {
+        document.getElementById('models-header').textContent = 'AI Models';
+        container.innerHTML = '<span class="muted">No models installed. Run: haven pull &lt;model&gt;</span>';
+      }
+
+    } catch {
+      setStatus('ollama-status', false, 'unreachable');
+      document.getElementById('models-container').innerHTML =
+        '<span class="err">Cannot connect to Ollama</span>';
+    }
+  }
+
+  async function detectCompute() {
+    const el = document.getElementById('compute-type');
+
+    // Primary: hardware GPU info from metrics-server (nvidia-smi).
+    // Works regardless of whether a model is loaded — independent of Ollama state.
+    try {
+      const m = await fetch('/metrics.json', { signal: AbortSignal.timeout(3000) }).then(r => r.json());
+      if (m.gpu_name) {
+        const label = m.gpu_vram_total_mb
+          ? `GPU · ${m.gpu_name} · ${(m.gpu_vram_total_mb / 1024).toFixed(0)} GB`
+          : `GPU · ${m.gpu_name}`;
+        el.innerHTML = `<span class="badge gpu">${label}</span>`;
+        return;
+      }
+      // metrics-server responded but reported no GPU → CPU
+      el.innerHTML = '<span class="badge cpu">CPU</span>';
+      return;
+    } catch { /* metrics-server transiently unavailable */ }
+
+    // Fallback: check /api/ps for a model currently loaded in VRAM.
+    try {
+      const ps = await fetch('/api/ps', { signal: AbortSignal.timeout(5000) }).then(r => r.json());
+      const gpuModel = (ps.models || []).find(m => m.size_vram > 0);
+      if (gpuModel) {
+        const vram = (gpuModel.size_vram / 1024 / 1024 / 1024).toFixed(1);
+        el.innerHTML = `<span class="badge gpu">GPU · ${vram} GB VRAM</span>`;
+        return;
+      }
+    } catch { /* Ollama unreachable */ }
+
+    // Both endpoints unavailable — show detecting state rather than a false CPU badge.
+    // metrics-server usually warms up within seconds; next poll will correct this.
+    el.innerHTML = '<span class="badge" style="color:#657786">Detecting…</span>';
+  }
+
+  // ── Code Server ───────────────────────────────────────────────────────────
+  async function checkCodeServer() {
+    try {
+      // code-server has base=/ide so healthz is at /ide/healthz
+      const resp = await fetch('/ide/healthz', { signal: AbortSignal.timeout(5000) });
+      setStatus('code-status', resp.ok, resp.ok ? 'running' : 'error');
+    } catch {
+      setStatus('code-status', false, 'unreachable');
+    }
+  }
+
+  // ── SSH ───────────────────────────────────────────────────────────────────
+  function checkSSH() {
+    setStatus('ssh-status', 'blue', 'port 2222 — verify via ssh');
+  }
+
+  // ── Resources ─────────────────────────────────────────────────────────────
+  async function checkResources() {
+    try {
+      const m = await fetch('/metrics.json', { signal: AbortSignal.timeout(5000) }).then(r => r.json());
+
+      // CPU
+      setBar('cpu-bar', 'cpu-val', m.cpu_pct);
+
+      // RAM
+      const memPct = m.mem_total_mb > 0 ? (m.mem_used_mb / m.mem_total_mb * 100) : 0;
+      setBar('mem-bar', 'mem-val', memPct, `${fmtMB(m.mem_used_mb)} / ${fmtMB(m.mem_total_mb)}`);
+
+      // Disk
+      const diskPct = m.disk_total_mb > 0 ? (m.disk_used_mb / m.disk_total_mb * 100) : 0;
+      setBar('disk-bar', 'disk-val', diskPct, `${fmtMB(m.disk_used_mb)} / ${fmtMB(m.disk_total_mb)}`);
+
+      // GPU (shown only when a GPU is detected)
+      const gpuRow = document.getElementById('gpu-row');
+      if (gpuRow && m.gpu_util_pct !== undefined) {
+        gpuRow.style.display = '';
+        const gpuDetail = m.gpu_vram_used_mb && m.gpu_vram_total_mb
+          ? `${fmtMB(m.gpu_vram_used_mb)} / ${fmtMB(m.gpu_vram_total_mb)}`
+          : undefined;
+        setBar('gpu-bar', 'gpu-val', m.gpu_util_pct, gpuDetail);
+      }
+
+      // Container uptimes
+      const table = document.getElementById('containers-table');
+      if (m.containers && m.containers.length > 0) {
+        const now = Date.now();
+        const rows = m.containers.map(c => {
+          const name = c.name.replace('inferhaven-', '');
+          const uptime = c.started_at
+            ? formatUptime(now - new Date(c.started_at).getTime())
+            : '—';
+          return `<tr><td class="ct-name">${name}</td><td>${uptime}</td></tr>`;
+        }).join('');
+        table.innerHTML = rows;
+      } else {
+        table.innerHTML = '<tr><td colspan="2" class="muted">metrics unavailable</td></tr>';
+      }
+    } catch {
+      // Metrics server might not be ready yet — show placeholder
+      document.getElementById('cpu-val').textContent = '—';
+      document.getElementById('mem-val').textContent = '—';
+      document.getElementById('disk-val').textContent = '—';
+      document.getElementById('containers-table').innerHTML =
+        '<tr><td colspan="2" class="muted">metrics unavailable</td></tr>';
+    }
+  }
+
+  // ── Main ──────────────────────────────────────────────────────────────────
+  async function checkAll() {
+    document.getElementById('last-check').textContent = new Date().toLocaleTimeString();
+    await Promise.allSettled([
+      checkOllama(),
+      checkCodeServer(),
+      checkResources(),
+      detectCompute(),
+    ]);
+    checkSSH();
+  }
+
+  // Update uptime display every second from the fetched startup timestamp
+  setInterval(() => {
+    const el = document.getElementById('uptime');
+    if (stackStartTime) {
+      el.textContent = formatUptime(Date.now() - stackStartTime);
+    }
+  }, 1000);
+
+  // Auto-refresh data every 30 seconds
+  setInterval(checkAll, 30000);
+
+  // Init
+  loadStartupTime().then(checkAll);
+</script>
+</body>
+</html>

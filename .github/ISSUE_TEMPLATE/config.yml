@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💡 Feature idea or improvement
+    url: https://github.com/InferHaven/inferhaven-core/discussions/categories/ideas
+    about: "Per CONTRIBUTING, please open a Discussion (not an issue) so we can explore the idea before any code is written. Good ones get converted into issues."
+  - name: 🙋 Question or help with setup
+    url: https://github.com/InferHaven/inferhaven-core/discussions/categories/q-a
+    about: "Ask in Discussions. Setup and usage questions are answered faster there than in the issue tracker."
+  - name: 💬 InferHaven Discord
+    url: https://discord.gg/X5htGNnEh5
+    about: "Chat with the community and maintainers — best for quick setup help and real-time discussion."
+  - name: 🔒 Report a security vulnerability
+    url: https://github.com/InferHaven/inferhaven-core/blob/main/SECURITY.md
+    about: "Do NOT open a public issue. Email lookout@inferhaven.com (PGP available). See the Security Policy for coordinated disclosure."
