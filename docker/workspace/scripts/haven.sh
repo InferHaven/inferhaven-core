@@ -4477,7 +4477,11 @@ cmd_devcontainer() {
         return 0
       fi
       echo -e "${CYAN}[haven devcontainer]${NC} removing $(echo "$ids" | wc -l) container(s):"
-      echo "$ids" | xargs -r docker rm -f
+      # Route through the docker() sudo wrapper — xargs would invoke the external
+      # docker binary directly and bypass it (SC2033). $ids is newline-separated,
+      # already confirmed non-empty above; intentional word-split into args.
+      # shellcheck disable=SC2086
+      docker rm -f $ids
       ;;
     build)
       echo -e "${YELLOW}[haven devcontainer]${NC} 'build' is not nested-safe — the cli passes"
@@ -4698,6 +4702,9 @@ cmd_nest() {
 
       local tmp
       tmp="$(mktemp --suffix=.yml)"
+      # Expand $tmp now, not at signal time: it's a local that's out of scope by
+      # the time the EXIT trap fires, so deferring would rm an empty path (SC2064).
+      # shellcheck disable=SC2064
       trap "rm -f '$tmp'" EXIT
       cat > "$tmp" <<EOF
 ###############################################################################
@@ -4760,6 +4767,9 @@ EOF
       echo -e "${CYAN}[haven nest]${NC} host:    ${host}"
       echo -e "${CYAN}[haven nest]${NC} project: ${proj}"
       echo -e "${CYAN}[haven nest]${NC} compose:"
+      # Intentional word-split: $compose_args is a space-joined token list
+      # (-f <file> …); same pattern as the `docker compose $compose_args` call below.
+      # shellcheck disable=SC2086
       printf '%s\n' $compose_args | grep -v '^-f$' | sed 's/^/    /'
       echo ""
 
@@ -4827,10 +4837,13 @@ EOF
           # full-stack override) defeat the `name=^haven-nest-` prefix
           # filter, but the compose project label always starts with
           # haven-nest- because that's what we pass via -p at up time.
-          local _ids
-          _ids="$(docker ps -aq --filter "label=com.docker.compose.project" 2>/dev/null \
-                  | xargs -r docker inspect --format \
-                      '{{index .Config.Labels "com.docker.compose.project"}}|{{.Name}}|{{.State.Status}}|{{.Config.Image}}' 2>/dev/null \
+          local _ids _pids
+          _pids="$(docker ps -aq --filter "label=com.docker.compose.project" 2>/dev/null)"
+          # Word-split IDs into args + route through the docker() sudo wrapper;
+          # xargs would call the external docker binary and bypass it (SC2033).
+          # shellcheck disable=SC2086
+          _ids="$([ -n "$_pids" ] && docker inspect --format \
+                      '{{index .Config.Labels "com.docker.compose.project"}}|{{.Name}}|{{.State.Status}}|{{.Config.Image}}' $_pids 2>/dev/null \
                   | awk -F'|' '$1 ~ /^haven-nest-/ {sub("^/", "", $2); printf "%-50s %-15s %s\n", $2, $3, $4}')"
           if [ -z "$_ids" ]; then
             echo "(no nested stacks running)"
