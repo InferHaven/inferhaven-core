@@ -48,12 +48,16 @@ _haven_models_list() {
     _haven_models_tags | jq -r '.models[].name' 2>/dev/null
 }
 
-# Returns a model's num_ctx (cached per model).
-# Priority: 1) explicit num_ctx in /api/show .parameters (haven tune/params)
-#           2) native <arch>.context_length from .model_info  (GGUF native max)
-#           3) OLLAMA_DEFAULT_CTX env (32768 fallback)
-# Mirrors the priority chain in `haven claude` (haven.sh) so harnesses get
-# each model's native window when autotune is off — not the global env default.
+# Returns the context window a harness may safely advertise for a model — i.e.
+# what Ollama will actually SERVE, never more (over-advertising overflows the
+# server and triggers "context exceeds window"). Cached per model.
+# Priority: 1) explicit num_ctx in /api/show .parameters (haven tune/params) —
+#              served verbatim via the Modelfile, already capped at model max.
+#           2) UNTUNED model → min(native <arch>.context_length, server floor).
+#              The server serves untuned models at OLLAMA_CONTEXT_LENGTH, not
+#              their native GGUF window, so we cap native at OLLAMA_DEFAULT_CTX
+#              (kept in lockstep with the compose OLLAMA_CONTEXT_LENGTH).
+#           3) OLLAMA_DEFAULT_CTX env (32768 fallback) when no window is known.
 _haven_model_ctx() {
     _haven_cache_init
     local model="$1"
@@ -72,15 +76,28 @@ _haven_model_ctx() {
     local ctx
     ctx=$(jq -r '.parameters // ""' "${cache}" 2>/dev/null \
             | grep -i '^num_ctx ' | awk '{print $2}' | head -1)
-    if [ -z "${ctx}" ]; then
-        # Smallest <arch>.context_length key (handles llama.*, gemma3.*,
-        # qwen3.*, mistral.*, etc.) — model's native window.
-        ctx=$(jq -r '(.model_info // {}) | to_entries[]
-                     | select(.key | test("\\.context_length$"))
-                     | .value' "${cache}" 2>/dev/null \
-                | sort -n | head -1)
+    if [ -n "${ctx}" ]; then
+        # Explicit num_ctx (haven tune/params): Ollama serves exactly this via
+        # the Modelfile and tune already capped it at the model max — use as-is.
+        echo "${ctx}"
+        return 0
     fi
-    echo "${ctx:-${OLLAMA_DEFAULT_CTX:-32768}}"
+    # No explicit num_ctx → the server serves this UNTUNED model at its default
+    # window (OLLAMA_CONTEXT_LENGTH, built-in 4096 if unset), NOT the model's
+    # native GGUF window. Advertising native to openai-compat harnesses
+    # (opencode/aider/...) lets them overflow what the server actually serves
+    # and hit "context exceeds window". Cap native at the server floor so the
+    # advertised ctx never exceeds what is served. Keep OLLAMA_CONTEXT_LENGTH
+    # (compose) and OLLAMA_DEFAULT_CTX (here) in lockstep.
+    local native ceiling="${OLLAMA_DEFAULT_CTX:-32768}"
+    native=$(jq -r '(.model_info // {}) | to_entries[]
+                 | select(.key | test("\\.context_length$"))
+                 | .value' "${cache}" 2>/dev/null \
+            | sort -n | head -1)
+    case "${native}" in
+        ''|*[!0-9]*) echo "${ceiling}"; return 0 ;;
+    esac
+    [ "${native}" -lt "${ceiling}" ] && echo "${native}" || echo "${ceiling}"
 }
 
 # Pre-populate /api/show cache for ALL models in parallel.
