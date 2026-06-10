@@ -14,6 +14,10 @@ services:
   # ── Ollama (CPU-only in Codespaces) ─────────────────────────────────────
   ollama:
     image: ollama/ollama:latest
+    # Publish to the host so Codespaces can forward the API (it forwards
+    # host-bound ports, not docker-DNS service names). Matches forwardPorts:[11434].
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
     volumes:
       - ollama_data:/root/.ollama
     environment:

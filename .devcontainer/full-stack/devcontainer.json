@@ -36,6 +36,11 @@
     }
   },
 
+  // These map to host ports the compose override publishes (caddy/code-server/
+  // ollama live in separate containers; Codespaces only forwards ports that are
+  // published to the host or listening in the workspace container, NOT
+  // docker-DNS service names). 2222 is the workspace container's own sshd —
+  // forwardable locally, but in Codespaces use `gh codespace ssh` (see docs).
   "forwardPorts": [11434, 8443, 80, 2222],
   "portsAttributes": {
     "11434": { "label": "Ollama API", "onAutoForward": "silent" },
