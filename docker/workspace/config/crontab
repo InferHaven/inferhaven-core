@@ -1,0 +1,9 @@
+# InferHaven supercronic schedule — runs as the haven user.
+# Format: standard cron 5-field, then command.
+# Output goes to ~/.haven/install.log (supercronic default redirect).
+
+# Daily at 03:00 — rotate logs, evict old alerts/downloads
+0 3 * * * /usr/local/bin/haven-logrotate
+
+# Every 30 min — warm model cache for fast status bar refresh
+*/30 * * * * /usr/local/bin/haven-models-cache-warm

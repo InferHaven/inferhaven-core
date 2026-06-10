@@ -1,0 +1,94 @@
+name: Bug Report
+description: Report a reproducible problem with InferHaven Core.
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug — a clear report is one of the most useful contributions to the project.
+
+        **Before you file:**
+        - This tracker is for **inferhaven-core** (the self-hostable Docker stack).
+        - **Security vulnerability?** Do **not** open a public issue. Follow the [Security Policy](https://github.com/InferHaven/inferhaven-core/blob/main/SECURITY.md) (email `lookout@inferhaven.com`, PGP available).
+        - Please [search existing issues](https://github.com/InferHaven/inferhaven-core/issues) first to avoid duplicates.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect to happen, and what actually happened?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: How are you running InferHaven?
+      options:
+        - Self-hosted (docker compose / make up)
+        - GitHub Codespaces
+        - Devcontainer (VS Code Dev Containers / DevPod / JetBrains Gateway)
+        - Nested devcontainer (haven nest / haven devcontainer)
+        - Other (describe above)
+    validations:
+      required: true
+  - type: dropdown
+    id: compute
+    attributes:
+      label: GPU or CPU?
+      options:
+        - NVIDIA GPU (Container Toolkit)
+        - CPU-only
+        - AMD / RocM
+        - AMD / Vulkan (note - out of scope; doctor warns only)
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: "`haven doctor` output"
+      description: Run `./scripts/haven doctor` (or `haven doctor` inside the workspace) and paste the output here. It captures most environment details automatically.
+      render: text
+  - type: input
+    id: model
+    attributes:
+      label: Model(s) involved
+      placeholder: "e.g. qwen3:4b-instruct-2507-q4_K_M"
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      description: Release tag, commit SHA, or `inferhaven-core` image tag.
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Host OS
+      placeholder: "e.g. Ubuntu 24.04, macOS 14, Proxmox VE 8"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: "`make logs` or `docker compose logs <service>`. Redact any secrets/tokens first."
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-flight
+      options:
+        - label: I searched existing issues and this isn't a duplicate
+          required: true
+        - label: This is not a security vulnerability (those go to the Security Policy, not here)
+          required: true
+        - label: I redacted any secrets, tokens, or keys from the logs/config above
+          required: true

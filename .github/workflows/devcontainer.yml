@@ -1,0 +1,100 @@
+###############################################################################
+# Devcontainer smoke test
+#
+# Verifies the README claim that this repo is "Devcontainer-ready" by booting
+# the stack via @devcontainers/cli (the same spec VS Code Dev Containers,
+# DevPod, JetBrains Gateway, and GitHub Codespaces all consume) and asserting
+# every advertised feature with scripts/devcontainer-smoke.sh.
+#
+# Matrix:
+#   - codespaces  — slim stack (.devcontainer/devcontainer.json)
+#   - full-stack  — full prod stack (.devcontainer/full-stack/devcontainer.json)
+#
+# Runs on:
+#   - PRs touching anything that can affect the devcontainer surface
+#   - Pushes to main with the same path filter
+#   - Manual dispatch (for one-off verification)
+###############################################################################
+name: devcontainer-smoke
+
+on:
+  pull_request:
+    paths:
+      - ".devcontainer/**"
+      - "docker-compose.codespaces.yml"
+      - "docker-compose.yml"
+      - "docker-compose.devcontainer.override.yml"
+      - "docker/workspace/**"
+      - "scripts/devcontainer-smoke.sh"
+      - ".github/workflows/devcontainer.yml"
+  push:
+    branches: [main]
+    paths:
+      - ".devcontainer/**"
+      - "docker-compose.codespaces.yml"
+      - "docker-compose.yml"
+      - "docker-compose.devcontainer.override.yml"
+      - "docker/workspace/**"
+      - "scripts/devcontainer-smoke.sh"
+      - ".github/workflows/devcontainer.yml"
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - flavor: codespaces
+            config: ".devcontainer/devcontainer.json"
+            compose: "docker-compose.codespaces.yml"
+            project: "inferhaven-codespaces"
+          - flavor: full-stack
+            config: ".devcontainer/full-stack/devcontainer.json"
+            compose: "docker-compose.yml -f docker-compose.devcontainer.override.yml"
+            project: "inferhaven-dev"
+
+    name: smoke (${{ matrix.flavor }})
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install @devcontainers/cli
+        run: npm install -g @devcontainers/cli
+
+      - name: Bring devcontainer up
+        run: |
+          devcontainer up \
+            --workspace-folder . \
+            --config "${{ matrix.config }}"
+
+      - name: Run smoke assertions
+        # SKIP_MODEL=1 because a ~2 GB CPU pull on GH-hosted runners is slow
+        # and orthogonal to the devcontainer claim. The model-pull path is
+        # covered by manual / Codespaces verification.
+        run: |
+          devcontainer exec \
+            --workspace-folder . \
+            --config "${{ matrix.config }}" \
+            env SKIP_MODEL=1 DEVCONTAINER_FLAVOR=${{ matrix.flavor }} \
+            bash scripts/devcontainer-smoke.sh
+
+      - name: Dump logs on failure
+        if: failure()
+        run: |
+          docker compose -f ${{ matrix.compose }} \
+            -p ${{ matrix.project }} logs --no-color || true
+
+      - name: Tear down
+        if: always()
+        run: |
+          docker compose -f ${{ matrix.compose }} \
+            -p ${{ matrix.project }} down -v || true

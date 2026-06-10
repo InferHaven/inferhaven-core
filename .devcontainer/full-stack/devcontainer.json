@@ -1,0 +1,54 @@
+{
+  // DO NOT add a `features:` block here. The workspace image already
+  // installs zsh + Oh My Zsh + zsh-autosuggestions + zsh-syntax-highlighting
+  // at build time (docker/workspace/Dockerfile). When `features:` is set on a
+  // compose-service devcontainer, DevPod synthesises `Dockerfile-with-features`
+  // and rebuilds from the project root as context — but our Dockerfile COPYs
+  // expect context = ./docker/workspace, so the build fails with
+  // `"/config/...": not found` for every COPY. Tracked in
+  // /root/.claude/plans/elegant-conjuring-deer.md Phase A.
+  "name": "InferHaven Core — Full Stack",
+  "dockerComposeFile": [
+    "../../docker-compose.yml",
+    "../../docker-compose.devcontainer.override.yml"
+  ],
+  "service": "workspace",
+  "workspaceFolder": "/home/haven/projects/inferhaven-core",
+  "shutdownAction": "stopCompose",
+
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "zsh",
+        "editor.fontSize": 14,
+        "editor.tabSize": 2,
+        "editor.formatOnSave": true,
+        "workbench.colorTheme": "Tomorrow Night Blue"
+      },
+      "extensions": [
+        "vscodevim.vim",
+        "esbenp.prettier-vscode",
+        "ms-python.python",
+        "golang.go",
+        "bradlc.vscode-tailwindcss",
+        "ms-azuretools.vscode-docker"
+      ]
+    }
+  },
+
+  "forwardPorts": [11434, 8443, 80],
+  "portsAttributes": {
+    "11434": { "label": "Ollama API", "onAutoForward": "silent" },
+    "8443":  { "label": "code-server (web IDE)", "onAutoForward": "notify" },
+    "80":    { "label": "Caddy (status + IDE redirect)", "onAutoForward": "silent" }
+  },
+
+  "postCreateCommand": "/usr/local/bin/devcontainer-setup.sh",
+
+  "remoteUser": "haven",
+
+  "containerEnv": {
+    "OLLAMA_HOST": "http://ollama:11434",
+    "DEVCONTAINER_FLAVOR": "full-stack"
+  }
+}

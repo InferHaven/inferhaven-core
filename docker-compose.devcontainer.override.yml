@@ -1,0 +1,99 @@
+###############################################################################
+# InferHaven Core — Devcontainer Override (full-stack flavor)
+#
+# Layers on top of docker-compose.yml when opened via the full-stack
+# devcontainer flavor (.devcontainer/full-stack/devcontainer.json). Used as the
+# second --file argument to docker compose, so values here REPLACE or extend
+# the main compose file.
+#
+# What this override does:
+#   - Renames the compose project to `inferhaven-dev` so it never collides
+#     with a running production InferHaven stack on the same host (which uses
+#     `inferhaven`). Renames every container_name + every volume + the bridge
+#     network to match.
+#   - Drops host port bindings on workspace/code-server/caddy. The
+#     devcontainer's `forwardPorts` exposes them to the editor; we don't want
+#     to fight for 80/443/8443 on the host.
+#   - Replaces workspace's volumes list with a stable bind on the repo so
+#     editor edits round-trip into the container regardless of where
+#     `docker compose` was invoked from (relative paths in service `volumes:`
+#     resolve against the compose-file directory, not the invocation cwd —
+#     unlike `${PWD}` expansion which is shell-time and host-cwd-dependent).
+#   - Sets devcontainer-friendly defaults: small CPU model, auto-tune off,
+#     opencode auto-installed.
+#
+# GPU plumbing in the main file stays commented exactly as-is — uncomment the
+# same lines you would for production and the full-stack devcontainer picks
+# them up.
+###############################################################################
+name: inferhaven-dev
+
+services:
+  ollama:
+    container_name: inferhaven-dev-ollama
+
+  workspace:
+    container_name: inferhaven-dev-workspace
+    # Strip host port bindings — devcontainer forwardPorts handles exposure.
+    ports: !override []
+    environment:
+      # Smaller default model so devcontainer cold-boot stays under the same
+      # budget as the codespaces flavor. Override in .env if you have GPU.
+      - DEFAULT_MODEL=${DEFAULT_MODEL:-qwen3:4b-instruct-2507-q4_K_M}
+      - HAVEN_AUTO_TUNE=${HAVEN_AUTO_TUNE:-0}
+      - INSTALL_ASSISTANTS=${INSTALL_ASSISTANTS:-opencode}
+    # Full list replacement — drops the main stack's apt-cache + apt-lists
+    # volumes (irrelevant for ephemeral devcontainer use) and switches the
+    # /home/haven/projects mount from a `device:${PWD}` named volume (whose
+    # source varies with how the user invoked compose) to a direct bind on
+    # `.` (compose resolves this relative to THIS file's directory = repo
+    # root — stable across DevPod / @devcontainers/cli / VS Code).
+    volumes: !override
+      - workspace_home:/home
+      - .:/home/haven/projects/inferhaven-core
+      - .:/opt/inferhaven:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  code-server:
+    container_name: inferhaven-dev-code-server
+    ports: !override []
+
+  caddy:
+    container_name: inferhaven-dev-caddy
+    ports: !override []
+    environment:
+      # Pin dev devcontainer to plain HTTP on localhost. The entrypoint
+      # auto-detects localhost and sets TLS_MODE=off, so `http://localhost` and
+      # the internal smoke check at `http://caddy/` both return HTTP 200
+      # instead of a 308 redirect to HTTPS (which would otherwise force the
+      # dev workflow through a self-signed-cert trust dance). Users wanting
+      # the full TLS path can set DOMAIN explicitly in .env.
+      - DOMAIN=${DEVCONTAINER_DOMAIN:-localhost}
+      - TLS_MODE=${DEVCONTAINER_TLS_MODE:-off}
+      - ALLOWED_IPS=${DEVCONTAINER_ALLOWED_IPS:-}
+
+  haven-agent:
+    container_name: inferhaven-dev-haven-agent
+
+networks:
+  inferhaven:
+    # Match the new project name so we don't merge into the prod bridge.
+    name: inferhaven-dev
+
+volumes:
+  # Every named volume gets a `_dev_` prefix so it's isolated from prod.
+  # The `projects` + `workspace_apt_cache` + `workspace_apt_lists` volumes
+  # from the main compose file are intentionally NOT re-declared here —
+  # workspace.volumes (above) no longer references them in the dev flavor,
+  # so leaving them as orphaned top-level defs is harmless and shrinks the
+  # `docker volume ls` surface.
+  ollama_data:
+    name: inferhaven_dev_ollama_data
+  workspace_home:
+    name: inferhaven_dev_workspace_home
+  code_server_data:
+    name: inferhaven_dev_code_server_data
+  caddy_data:
+    name: inferhaven_dev_caddy_data
+  caddy_config:
+    name: inferhaven_dev_caddy_config

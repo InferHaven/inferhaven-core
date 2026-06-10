@@ -1,0 +1,596 @@
+#!/bin/bash
+###############################################################################
+# haven — InferHaven CLI (host wrapper)
+#
+# Thin host-side wrapper. Structural commands (up/down/logs/reset/update and
+# environment diagnostics) run directly on the host where Docker and the .env
+# file live. All other commands are delegated into the running workspace
+# container, which uses container-internal networking to reach Ollama — so
+# custom OLLAMA_PORT mappings never cause conflicts.
+#
+# Usage: haven <command> [args]
+###############################################################################
+set -e
+
+VERSION="0.1.0"
+COMPOSE_FILE="${INFERHAVEN_DIR:-$(cd "$(dirname "$0")/.." && pwd)}/docker-compose.yml"
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+CYAN='\033[0;36m'
+YELLOW='\033[1;33m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+# ── Sibling-container resolution ──────────────────────────────────────────────
+# Resolve sibling containers by compose service label, not by hardcoded
+# container_name. Compose stamps `com.docker.compose.service=<name>` on every
+# container, and `ps -q <svc>` against this project's compose file returns the
+# right ID even when container_name has been overridden (devcontainer flavor,
+# user -p flag, custom override, etc.).
+_haven_container() {
+  docker compose -f "$COMPOSE_FILE" ps -q "$1" 2>/dev/null | head -1
+}
+
+# ── Delegate to workspace container ──────────────────────────────────────────
+# Used for all commands that involve Ollama API calls or internal state.
+# The workspace container uses http://ollama:11434 (container DNS) internally,
+# which is immune to host port conflicts.
+_delegate() {
+  local ws; ws="$(_haven_container workspace)"
+  if [ -z "$ws" ]; then
+    echo -e "${RED}[InferHaven]${NC} Workspace is not running. Run 'haven up' first."
+    exit 1
+  fi
+  # Use -t only when stdin is a TTY (needed for 'haven chat' interactive mode)
+  if [ -t 0 ] && [ -t 1 ]; then
+    exec docker exec -it "$ws" haven "$@"
+  else
+    exec docker exec -i "$ws" haven "$@"
+  fi
+}
+
+# ── Structural commands (run on host, workspace may not be up yet) ────────────
+
+# Belt-and-suspenders: tighten .env to 600 before every `haven up` so a fresh
+# clone with default 644 perms doesn't leak API keys to other users on the
+# host. Idempotent and silent on the happy path. Skipped if the file doesn't
+# exist (compose will then complain itself).
+_haven_lock_envfile() {
+  local envf="$(dirname "$COMPOSE_FILE")/.env"
+  if [ -f "$envf" ]; then
+    local mode
+    mode="$(stat -c '%a' "$envf" 2>/dev/null || echo '')"
+    if [ -n "$mode" ] && [ "$mode" != "600" ]; then
+      chmod 600 "$envf" 2>/dev/null \
+        && echo -e "${CYAN}[InferHaven]${NC} Tightened .env permissions: ${mode} → 600"
+    fi
+  fi
+}
+
+cmd_up() {
+  _haven_lock_envfile
+  echo -e "${CYAN}[InferHaven]${NC} Starting services..."
+  docker compose -f "$COMPOSE_FILE" up -d
+  echo -e "${GREEN}[InferHaven]${NC} Services started."
+  # Show Ollama-aware status from inside the container once it's up
+  local ws; ws="$(_haven_container workspace)"
+  if [ -n "$ws" ]; then
+    docker exec "$ws" haven status 2>/dev/null || true
+  fi
+}
+
+cmd_down() {
+  echo -e "${CYAN}[InferHaven]${NC} Stopping services..."
+  docker compose -f "$COMPOSE_FILE" down
+  echo -e "${GREEN}[InferHaven]${NC} Services stopped."
+}
+
+cmd_restart() {
+  cmd_down
+  cmd_up
+}
+
+cmd_logs() {
+  if [ -n "$1" ]; then
+    docker compose -f "$COMPOSE_FILE" logs -f "$1"
+  else
+    docker compose -f "$COMPOSE_FILE" logs -f
+  fi
+}
+
+cmd_update() {
+  echo -e "${CYAN}[InferHaven]${NC} Updating..."
+  docker compose -f "$COMPOSE_FILE" pull
+  docker compose -f "$COMPOSE_FILE" up -d --build
+  echo -e "${GREEN}[InferHaven]${NC} Updated to latest."
+}
+
+cmd_reset() {
+  echo -e "${RED}[InferHaven]${NC} This will delete ALL data (models, projects, settings)."
+  read -r -p "  Are you sure? (type 'yes' to confirm): " CONFIRM
+  if [ "$CONFIRM" = "yes" ]; then
+    docker compose -f "$COMPOSE_FILE" down -v
+    echo -e "${GREEN}[InferHaven]${NC} All data removed. Run 'haven up' to start fresh."
+  else
+    echo "  Cancelled."
+  fi
+}
+
+# ── Display-address helpers ───────────────────────────────────────────────────
+
+# Read a single variable from the .env file (strips surrounding quotes)
+_env_val() {
+  local key="$1" envf
+  envf="$(dirname "$COMPOSE_FILE")/.env"
+  [ -f "$envf" ] && grep -E "^${key}=" "$envf" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d "\"'"
+}
+
+# Resolve the best host address to show the user:
+#   1. DOMAIN from env/file (if not "localhost")
+#   2. Primary non-loopback IP from hostname -I
+#   3. "localhost" fallback
+_resolve_host() {
+  local domain
+  domain="${DOMAIN:-$(_env_val DOMAIN)}"
+  if [ -n "$domain" ] && [ "$domain" != "localhost" ]; then
+    echo "$domain"; return
+  fi
+  local ip
+  ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+  if [ -n "$ip" ] && [ "$ip" != "127.0.0.1" ]; then
+    echo "$ip"; return
+  fi
+  echo "localhost"
+}
+
+# Returns 0 (true) when the host warrants TLS (i.e. not a bare IP or localhost)
+_is_tls() {
+  local d="$1"
+  case "$d" in
+    localhost|127.*) return 1 ;;
+  esac
+  echo "$d" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' && return 1
+  return 0
+}
+
+# ── Info commands (no Ollama API, no container needed) ────────────────────────
+cmd_ssh() {
+  local PORT="${SSH_PORT:-$(_env_val SSH_PORT)}"
+  PORT="${PORT:-2222}"
+  local HOST; HOST="$(_resolve_host)"
+  echo ""
+  echo -e "  ${CYAN}SSH into InferHaven:${NC}"
+  echo "    ssh -p ${PORT} haven@${HOST}"
+  if [ "$HOST" = "localhost" ]; then
+    echo ""
+    echo "  For remote access, set DOMAIN in .env to your server IP or hostname."
+  fi
+  echo ""
+}
+
+cmd_ide() {
+  local HOST; HOST="$(_resolve_host)"
+  local URL
+  if _is_tls "$HOST"; then
+    URL="https://${HOST}/ide"
+  else
+    local PORT="${HTTP_PORT:-$(_env_val HTTP_PORT)}"
+    PORT="${PORT:-80}"
+    if [ "$PORT" = "80" ]; then
+      URL="http://${HOST}/ide"
+    else
+      URL="http://${HOST}:${PORT}/ide"
+    fi
+  fi
+  echo ""
+  echo -e "  ${CYAN}Web IDE (VS Code):${NC}"
+  echo "    ${URL}"
+  echo ""
+  echo "  Password: (set in .env as CODE_SERVER_PASSWORD)"
+  echo ""
+}
+
+cmd_caddy() {
+  local SUBCMD="${1:-status}"
+  local DOMAIN_VAL TLS_MODE_VAL EFFECTIVE_TLS CADDY_RUNNING="false"
+
+  # Read live config from the running container — reliable even when `haven` is
+  # a symlink in PATH (which breaks the $0-relative .env path resolution).
+  local _caddy_id
+  _caddy_id="$(_haven_container caddy)"
+  if [ -n "$_caddy_id" ]; then
+    CADDY_RUNNING="true"
+    local _cenv
+    _cenv=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$_caddy_id" 2>/dev/null)
+    DOMAIN_VAL=$(echo "$_cenv" | grep '^DOMAIN=' | head -1 | cut -d= -f2-)
+    TLS_MODE_VAL=$(echo "$_cenv" | grep '^TLS_MODE=' | head -1 | cut -d= -f2-)
+  fi
+
+  # Fall back to .env file if container isn't running or vars were empty
+  DOMAIN_VAL="${DOMAIN_VAL:-${DOMAIN:-$(_env_val DOMAIN)}}"
+  DOMAIN_VAL="${DOMAIN_VAL:-localhost}"
+  TLS_MODE_VAL="${TLS_MODE_VAL:-${TLS_MODE:-$(_env_val TLS_MODE)}}"
+  TLS_MODE_VAL="${TLS_MODE_VAL:-auto}"
+
+  # Resolve effective TLS mode (mirrors entrypoint.sh logic)
+  if [ "$TLS_MODE_VAL" = "auto" ]; then
+    if [ "$DOMAIN_VAL" = "localhost" ] || \
+       echo "$DOMAIN_VAL" | grep -qE '^[0-9]{1,3}(\.[0-9]{1,3}){3}$' || \
+       echo "$DOMAIN_VAL" | grep -qE '^\[.*\]$'; then
+      EFFECTIVE_TLS="off"
+    elif ! echo "$DOMAIN_VAL" | grep -q '\.' || \
+         echo "$DOMAIN_VAL" | grep -qiE '\.(lan|local|home|internal|test|example|invalid|corp|private|arpa)$'; then
+      EFFECTIVE_TLS="internal"
+    else
+      EFFECTIVE_TLS="acme"
+    fi
+  else
+    EFFECTIVE_TLS="$TLS_MODE_VAL"
+  fi
+
+  case "$SUBCMD" in
+    status)
+      if [ "$CADDY_RUNNING" = "false" ]; then
+        echo ""
+        echo -e "  ${RED}Caddy is not running.${NC} Start with: haven up"
+        echo ""
+        return 0
+      fi
+      echo ""
+      echo -e "  ${CYAN}Caddy status${NC}"
+      echo "    Domain:   ${DOMAIN_VAL}"
+      echo "    TLS mode: ${EFFECTIVE_TLS}"
+      case "$EFFECTIVE_TLS" in
+        off)
+          echo "    Certificate: none (plain HTTP)"
+          ;;
+        internal)
+          echo "    Certificate: Caddy self-signed CA (not trusted by default)"
+          echo ""
+          echo -e "  ${YELLOW}Run 'haven caddy cert' to export the CA and get install instructions.${NC}"
+          ;;
+        acme)
+          echo "    Certificate: Let's Encrypt (publicly trusted)"
+          ;;
+      esac
+      echo ""
+      ;;
+
+    cert)
+      if [ "$EFFECTIVE_TLS" != "internal" ]; then
+        echo ""
+        echo -e "  ${YELLOW}No self-signed certificate in use (TLS mode: ${EFFECTIVE_TLS}).${NC}"
+        echo "  Nothing to export."
+        echo ""
+        exit 0
+      fi
+
+      local _caddy_run
+      _caddy_run="$(_haven_container caddy)"
+      if [ -z "$_caddy_run" ]; then
+        echo -e "${RED}[InferHaven]${NC} Caddy container is not running."
+        echo "  Start it with: haven up"
+        exit 1
+      fi
+
+      local CERT_PATH; CERT_PATH="$(pwd)/caddy-root.crt"
+      echo ""
+      echo -e "  ${CYAN}Exporting Caddy root CA...${NC}"
+      docker cp "${_caddy_run}:/data/caddy/pki/authorities/local/root.crt" "$CERT_PATH"
+      echo -e "  ${GREEN}✓${NC} Saved to: ${CERT_PATH}"
+      echo ""
+      echo -e "  ${BOLD}Trust this certificate so your tools can verify HTTPS connections to ${DOMAIN_VAL}.${NC}"
+      echo ""
+      echo -e "  ${CYAN}macOS:${NC}"
+      echo "    sudo security add-trusted-cert -d -r trustRoot \\"
+      echo "      -k /Library/Keychains/System.keychain ./caddy-root.crt"
+      echo ""
+      echo -e "  ${CYAN}Linux — Debian / Ubuntu:${NC}"
+      echo "    sudo cp ./caddy-root.crt /usr/local/share/ca-certificates/inferhaven-caddy.crt"
+      echo "    sudo update-ca-certificates"
+      echo ""
+      echo -e "  ${CYAN}Linux — RHEL / Fedora / Arch:${NC}"
+      echo "    sudo trust anchor --store ./caddy-root.crt"
+      echo ""
+      echo -e "  ${CYAN}Windows (run in cmd as Administrator):${NC}"
+      echo "    certutil -addstore Root caddy-root.crt"
+      echo ""
+      echo -e "  ${CYAN}Node.js tools (VS Code extensions — Cline, Continue, etc.):${NC}"
+      echo "    Extensions run in VS Code's extension host — a separate Node.js process."
+      echo "    terminal.integrated.env.linux only reaches the terminal shell, NOT extensions."
+      echo "    NODE_EXTRA_CA_CERTS must be set at the OS level so the extension host sees it."
+      echo ""
+      echo "    Option A — systemd user env (recommended; works for desktop + terminal launch):"
+      echo "      mkdir -p ~/.config/environment.d"
+      echo "      echo \"NODE_EXTRA_CA_CERTS=${CERT_PATH}\" >> ~/.config/environment.d/caddy-cert.conf"
+      echo "      systemctl --user set-environment NODE_EXTRA_CA_CERTS=${CERT_PATH}"
+      echo "      Then fully restart VS Code."
+      echo ""
+      echo "    Option B — shell profile (works when VS Code is launched from a terminal):"
+      echo "      echo 'export NODE_EXTRA_CA_CERTS=${CERT_PATH}' >> ~/.bashrc"
+      echo "      Source ~/.bashrc, then launch VS Code from that same terminal."
+      echo ""
+      echo "    After applying either option, fully restart VS Code (not just Reload Window)."
+      echo ""
+      echo -e "  ${CYAN}Verify with curl:${NC}"
+      echo "    curl --cacert ./caddy-root.crt https://${DOMAIN_VAL}/api/tags"
+      echo ""
+      ;;
+
+    *)
+      echo "  Usage: haven caddy [status|cert]"
+      echo "    status   Show Caddy TLS mode and domain"
+      echo "    cert     Export the Caddy root CA and print trust instructions"
+      ;;
+  esac
+}
+
+cmd_help() {
+  echo ""
+  echo -e "  ${CYAN}InferHaven${NC} v${VERSION} — A safe haven for AI inference"
+  echo ""
+  echo "  Usage: haven <command> [args]"
+  echo ""
+  echo "  Commands:"
+  echo "    up              Start all services"
+  echo "    down            Stop all services"
+  echo "    restart         Restart all services"
+  echo "    status          Show service status"
+  echo "    logs [service]  Show logs (all or specific service)"
+  echo ""
+  echo "    models          List downloaded AI models"
+  echo "    pull <model>    Download a new model"
+  echo "    remove <model>  Remove a downloaded model"
+  echo "    chat <model>    Interactive chat with a model"
+  echo ""
+  echo "    apt <sub>       Manage persistent workspace packages"
+  echo "      install <pkg...>   Install and persist packages across restarts"
+  echo "      remove <pkg...>    Untrack package"
+  echo "      list               Show tracked packages"
+  echo "      upgrade            Upgrade all tracked packages to latest"
+  echo ""
+  echo "    ssh-key <key>   Add an SSH public key"
+  echo "    ssh             Show SSH connection command"
+  echo "    ide             Show web IDE URL"
+  echo "    caddy           Caddy proxy status and certificate management"
+  echo "    caddy cert      Export root CA + print per-OS trust instructions"
+  echo ""
+  echo "    update          Pull latest images and restart"
+  echo "    reset           Remove all data and start fresh"
+  echo "    doctor          Diagnose your environment"
+  echo "    version         Show version"
+  echo "    help            Show this help"
+  echo ""
+  echo "  Popular models:"
+  echo "    qwen2.5-coder:7b        Balance speed with quality"
+  echo "    qwen2.5-coder:14b       Better quality, needs ~10GB RAM"
+  echo "    qwen2.5-coder:32b       Flagship quality (needs GPU)"
+  echo "    qwen3-coder:30b         Most agentic code model to date in the Qwen series"
+  echo ""
+}
+
+cmd_doctor() {
+  echo ""
+  echo -e "  ${CYAN}InferHaven Doctor${NC} — Diagnosing your environment..."
+  echo ""
+  ISSUES=0
+
+  # ── Docker ─────────────────────────────────────────────────────────────────
+  if command -v docker &> /dev/null; then
+    DOCKER_VER=$(docker --version 2>/dev/null | awk '{print $3}' | tr -d ',')
+    echo -e "  Docker:            ${GREEN}✓${NC} installed (${DOCKER_VER})"
+  else
+    echo -e "  Docker:            ${RED}✗ not found${NC}"
+    echo -e "                     Install: https://docs.docker.com/get-docker/"
+    ISSUES=$((ISSUES + 1))
+  fi
+
+  # ── Docker Compose ─────────────────────────────────────────────────────────
+  if docker compose version &> /dev/null; then
+    COMPOSE_VER=$(docker compose version --short 2>/dev/null)
+    echo -e "  Docker Compose:    ${GREEN}✓${NC} installed (${COMPOSE_VER})"
+  else
+    echo -e "  Docker Compose:    ${RED}✗ not found${NC}"
+    echo -e "                     Install: https://docs.docker.com/compose/install/"
+    ISSUES=$((ISSUES + 1))
+  fi
+
+  # ── Docker daemon ──────────────────────────────────────────────────────────
+  if docker info &> /dev/null; then
+    echo -e "  Docker daemon:     ${GREEN}✓${NC} running"
+  else
+    echo -e "  Docker daemon:     ${RED}✗ not running or no permission${NC}"
+    echo -e "                     Try: sudo systemctl start docker"
+    echo -e "                     Or add user to docker group: sudo usermod -aG docker \$USER"
+    ISSUES=$((ISSUES + 1))
+  fi
+
+  # ── .env file ──────────────────────────────────────────────────────────────
+  ENV_FILE="$(dirname "$COMPOSE_FILE")/.env"
+  if [ -f "$ENV_FILE" ]; then
+    echo -e "  .env file:         ${GREEN}✓${NC} found"
+    local _env_mode
+    _env_mode="$(stat -c '%a' "$ENV_FILE" 2>/dev/null || echo '')"
+    if [ -n "$_env_mode" ] && [ "$_env_mode" != "600" ] && [ "$_env_mode" != "400" ]; then
+      echo -e "  .env perms:        ${YELLOW}⚠ ${_env_mode}${NC} (recommended 600 — contains API keys)"
+      echo -e "                     Fix: chmod 600 \"$ENV_FILE\"  (or run: haven up)"
+      ISSUES=$((ISSUES + 1))
+    else
+      echo -e "  .env perms:        ${GREEN}✓${NC} ${_env_mode:-unknown} (owner-only)"
+    fi
+    if grep -q "CODE_SERVER_PASSWORD=inferhaven" "$ENV_FILE" 2>/dev/null; then
+      echo -e "  Password:          ${YELLOW}⚠ still using default password${NC}"
+      echo -e "                     Change CODE_SERVER_PASSWORD in .env"
+      ISSUES=$((ISSUES + 1))
+    else
+      echo -e "  Password:          ${GREEN}✓${NC} custom password set"
+    fi
+    local _ws_id; _ws_id="$(_haven_container workspace)"
+    if grep -qE "^AUTHORIZED_KEYS=.+" "$ENV_FILE" 2>/dev/null || \
+       { [ -n "$_ws_id" ] && docker exec "$_ws_id" test -s /home/haven/.ssh/authorized_keys 2>/dev/null; }; then
+      echo -e "  SSH key:           ${GREEN}✓${NC} configured"
+    else
+      echo -e "  SSH key:           ${YELLOW}⚠ no SSH key configured${NC}"
+      echo -e "                     Set AUTHORIZED_KEYS in .env or run: haven ssh-key \"your-key\""
+    fi
+  else
+    echo -e "  .env file:         ${RED}✗ not found${NC}"
+    echo -e "                     Run: cp .env.example .env"
+    ISSUES=$((ISSUES + 1))
+  fi
+
+  # ── GPU (NVIDIA) ───────────────────────────────────────────────────────────
+  echo ""
+  if command -v nvidia-smi &> /dev/null; then
+    GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1)
+    GPU_VRAM=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader 2>/dev/null | head -1)
+    echo -e "  NVIDIA GPU:        ${GREEN}✓${NC} ${GPU_NAME} (${GPU_VRAM})"
+
+    if docker run --rm --gpus all nvidia/cuda:12.0.0-base-ubuntu22.04 nvidia-smi &> /dev/null; then
+      echo -e "  Container Toolkit: ${GREEN}✓${NC} working"
+    else
+      echo -e "  Container Toolkit: ${RED}✗ not working${NC}"
+      echo -e "                     Install: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html"
+      ISSUES=$((ISSUES + 1))
+    fi
+
+    VRAM_MB=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -1)
+    if [ -n "$VRAM_MB" ]; then
+      echo ""
+      echo -e "  ${CYAN}Recommended models for your GPU:${NC}"
+      if [ "$VRAM_MB" -ge 48000 ]; then
+        echo "    qwen2.5-coder:32b + deepseek-coder-v2:16b (simultaneous)"
+      elif [ "$VRAM_MB" -ge 24000 ]; then
+        echo "    qwen2.5-coder:32b (excellent quality)"
+      elif [ "$VRAM_MB" -ge 12000 ]; then
+        echo "    deepseek-coder-v2:16b or qwen2.5-coder:14b"
+      elif [ "$VRAM_MB" -ge 8000 ]; then
+        echo "    qwen2.5-coder:7b (default) or codellama:7b"
+      else
+        echo "    qwen2.5-coder:3b (small but fast)"
+      fi
+    fi
+  else
+    echo -e "  NVIDIA GPU:        ${YELLOW}— not detected (CPU inference only)${NC}"
+    echo -e "                     This is fine! Ollama runs on CPU. GPU just makes it faster."
+  fi
+
+  # ── RAM ────────────────────────────────────────────────────────────────────
+  echo ""
+  TOTAL_RAM_MB=$(free -m 2>/dev/null | awk '/^Mem:/{print $2}')
+  AVAIL_RAM_MB=$(free -m 2>/dev/null | awk '/^Mem:/{print $7}')
+  if [ -n "$TOTAL_RAM_MB" ]; then
+    TOTAL_RAM_GB=$((TOTAL_RAM_MB / 1024))
+    AVAIL_RAM_GB=$((AVAIL_RAM_MB / 1024))
+    if [ "$TOTAL_RAM_MB" -ge 16000 ]; then
+      echo -e "  RAM:               ${GREEN}✓${NC} ${TOTAL_RAM_GB}GB total, ${AVAIL_RAM_GB}GB available"
+    elif [ "$TOTAL_RAM_MB" -ge 8000 ]; then
+      echo -e "  RAM:               ${YELLOW}⚠${NC} ${TOTAL_RAM_GB}GB total (16GB+ recommended for larger models)"
+    else
+      echo -e "  RAM:               ${RED}✗${NC} ${TOTAL_RAM_GB}GB total (minimum 8GB recommended)"
+      ISSUES=$((ISSUES + 1))
+    fi
+  fi
+
+  # ── Disk space ─────────────────────────────────────────────────────────────
+  AVAIL_DISK=$(df -BG /var/lib/docker 2>/dev/null | awk 'NR==2{print $4}' | tr -d 'G')
+  if [ -n "$AVAIL_DISK" ]; then
+    if [ "$AVAIL_DISK" -ge 50 ]; then
+      echo -e "  Disk (Docker):     ${GREEN}✓${NC} ${AVAIL_DISK}GB available"
+    elif [ "$AVAIL_DISK" -ge 20 ]; then
+      echo -e "  Disk (Docker):     ${YELLOW}⚠${NC} ${AVAIL_DISK}GB available (50GB+ recommended)"
+    else
+      echo -e "  Disk (Docker):     ${RED}✗${NC} ${AVAIL_DISK}GB available (models need 5-20GB each)"
+      ISSUES=$((ISSUES + 1))
+    fi
+  fi
+
+  # ── Port conflicts ─────────────────────────────────────────────────────────
+  echo ""
+  # Returns true if an InferHaven container holds the given host port
+  _inferhaven_owns_port() {
+    docker ps --format '{{.Ports}}' --filter "name=inferhaven-" 2>/dev/null \
+      | grep -qE ":$1->"
+  }
+  check_port() {
+    local PORT=$1 NAME=$2
+    if ss -tlnp 2>/dev/null | grep -q ":${PORT} " || \
+       netstat -tlnp 2>/dev/null | grep -q ":${PORT} "; then
+      if _inferhaven_owns_port "$PORT"; then
+        echo -e "  Port ${PORT} (${NAME}): ${GREEN}✓${NC} in use by InferHaven"
+      else
+        echo -e "  Port ${PORT} (${NAME}): ${YELLOW}⚠ in use by another process${NC}"
+        echo -e "                     Change ${NAME}_PORT in .env or stop the conflicting service"
+        ISSUES=$((ISSUES + 1))
+      fi
+    else
+      echo -e "  Port ${PORT} (${NAME}): ${GREEN}✓${NC} available"
+    fi
+  }
+  check_port "${SSH_PORT:-2222}" "SSH"
+  check_port "${HTTP_PORT:-80}" "HTTP"
+  check_port "${HTTPS_PORT:-443}" "HTTPS"
+  check_port "${OLLAMA_PORT:-11434}" "Ollama"
+
+  # ── Services (if running) ──────────────────────────────────────────────────
+  echo ""
+  if docker compose -f "$COMPOSE_FILE" ps --status running -q 2>/dev/null | grep -q .; then
+    echo -e "  ${CYAN}Running services:${NC}"
+    for SVC in ollama workspace code-server caddy; do
+      local _svc_id _svc_name
+      _svc_id="$(_haven_container "$SVC")"
+      if [ -z "$_svc_id" ]; then
+        continue
+      fi
+      _svc_name="$(docker inspect --format='{{.Name}}' "$_svc_id" 2>/dev/null | sed 's|^/||')"
+      STATUS=$(docker inspect --format='{{.State.Status}}' "$_svc_id" 2>/dev/null)
+      if [ "$STATUS" = "running" ]; then
+        echo -e "    ${_svc_name}: ${GREEN}● running${NC}"
+      elif [ -n "$STATUS" ]; then
+        echo -e "    ${_svc_name}: ${RED}● ${STATUS}${NC}"
+        ISSUES=$((ISSUES + 1))
+      fi
+    done
+
+    echo ""
+    local _ws_status_id; _ws_status_id="$(_haven_container workspace)"
+    if [ -n "$_ws_status_id" ] && docker exec "$_ws_status_id" haven status 2>/dev/null; then
+      : # status output already printed
+    fi
+  else
+    echo -e "  Services:          ${YELLOW}— not running (run 'haven up' to start)${NC}"
+  fi
+
+  # ── Summary ────────────────────────────────────────────────────────────────
+  echo ""
+  echo "  ────────────────────────────────────────"
+  if [ "$ISSUES" -eq 0 ]; then
+    echo -e "  ${GREEN}✓ All checks passed. InferHaven is ready.${NC}"
+  elif [ "$ISSUES" -le 2 ]; then
+    echo -e "  ${YELLOW}⚠ ${ISSUES} minor issue(s) found. See above for details.${NC}"
+  else
+    echo -e "  ${RED}✗ ${ISSUES} issue(s) found. Fix them before running InferHaven.${NC}"
+  fi
+  echo ""
+}
+
+# ── Route command ─────────────────────────────────────────────────────────────
+# Structural / host-only commands run directly. Everything else is delegated
+# to the workspace container where Ollama is reached via internal DNS.
+case "${1:-help}" in
+  up)       cmd_up ;;
+  down)     cmd_down ;;
+  restart)  cmd_restart ;;
+  logs)     shift; cmd_logs "$@" ;;
+  update)   cmd_update ;;
+  reset)    cmd_reset ;;
+  doctor)   cmd_doctor ;;
+  ssh)      cmd_ssh ;;
+  ide)      cmd_ide ;;
+  caddy)    shift; cmd_caddy "$@" ;;
+  version)  echo "InferHaven v${VERSION}" ;;
+  help)     cmd_help ;;
+  # All other commands delegate to the container (Ollama API, session, apt, etc.)
+  *)        _delegate "$@" ;;
+esac

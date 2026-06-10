@@ -1,0 +1,26 @@
+# Environment
+.env
+*.env.local
+
+# Docker
+docker-compose.override.yml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/settings.json
+.idea/
+.claude/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+
+# Secrets
+*.pem
+*.key
+id_rsa*
