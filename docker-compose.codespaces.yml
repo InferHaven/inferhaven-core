@@ -24,6 +24,10 @@ services:
       # Codespace. Reload from page cache is sub-second for small models.
       # Override in .env (e.g. OLLAMA_KEEP_ALIVE=5m) to restore upstream default.
       - OLLAMA_KEEP_ALIVE=${OLLAMA_KEEP_ALIVE:-30s}
+      # Untuned default context (this flavor runs HAVEN_AUTO_TUNE=0). Without
+      # this the server serves 4096 and opencode/aider truncate mid-task. Keep
+      # in lockstep with OLLAMA_DEFAULT_CTX (harness-advertised ceiling).
+      - OLLAMA_CONTEXT_LENGTH=${OLLAMA_DEFAULT_CTX:-32768}
     healthcheck:
       test: ["CMD", "ollama", "list"]
       interval: 10s

@@ -43,6 +43,13 @@ services:
       #   q4_0 — ~75% less KV cache VRAM, minimal quality impact
       #   f16  — full precision (Ollama upstream default)
       - OLLAMA_KV_CACHE_TYPE=${OLLAMA_KV_CACHE_TYPE:-q8_0}
+      # Default context window the server serves for UNTUNED models (incl. the
+      # OpenAI-compatible /v1 path coding harnesses use). Ollama precedence:
+      # request opts > Modelfile num_ctx (set by `haven tune`) > this > built-in
+      # 4096. So tuned models are unaffected; this only lifts the floor off the
+      # 4096 default that otherwise truncates opencode/aider mid-task. Keep in
+      # lockstep with OLLAMA_DEFAULT_CTX (the harness-advertised ceiling).
+      - OLLAMA_CONTEXT_LENGTH=${OLLAMA_DEFAULT_CTX:-32768}
     #  - NVIDIA_VISIBLE_DEVICES=all
     #  - OLLAMA_VULKAN=1
     #  - HSA_OVERRIDE_GFX_VERSION=${AMD_GFX_VERSION:-10.3.0}
@@ -70,9 +77,9 @@ services:
         ollama serve &
         pid=$$!
         until ollama list >/dev/null 2>&1; do sleep 1; done
-        echo "InferHaven: Pulling $DEFAULT_MODEL..."
-        ollama pull "$DEFAULT_MODEL" \
-          && echo "InferHaven: Model $DEFAULT_MODEL ready." \
+        echo "InferHaven: Pulling $$DEFAULT_MODEL..."
+        ollama pull "$$DEFAULT_MODEL" \
+          && echo "InferHaven: Model $$DEFAULT_MODEL ready." \
           || echo "InferHaven: Pull failed — server still running." >&2
         wait $$pid
     networks:
