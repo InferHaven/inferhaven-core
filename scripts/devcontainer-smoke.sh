@@ -39,6 +39,8 @@ esac
 
 MODEL="${DEFAULT_MODEL:-qwen2.5-coder:3b}"
 MODEL_WAIT="${MODEL_WAIT:-300}"
+OPENCODE_WAIT="${OPENCODE_WAIT:-180}"   # async npm install of opencode
+SERVICE_WAIT="${SERVICE_WAIT:-60}"      # async startup: ollama API, code-server, caddy, metrics
 PASS=0
 FAIL=0
 
@@ -46,6 +48,20 @@ pass() { printf "  \033[32mOK\033[0m   %s\n" "$1"; PASS=$((PASS+1)); }
 fail() { printf "  \033[31mFAIL\033[0m %s\n" "$1"; FAIL=$((FAIL+1)); }
 skip() { printf "  \033[33mSKIP\033[0m %s\n" "$1"; }
 hdr()  { printf "\n\033[1m== %s ==\033[0m\n" "$1"; }
+
+# Retry a command until it exits 0 or <timeout>s elapse. Converts a single-shot
+# probe of an async-starting dependency into a deterministic wait so CI never
+# flakes on "checked a beat too early." Usage: wait_for <timeout> <cmd> [args...]
+wait_for() {
+  local timeout="$1"; shift
+  local waited=0
+  while :; do
+    "$@" >/dev/null 2>&1 && return 0
+    [ "$waited" -ge "$timeout" ] && return 1
+    sleep 2
+    waited=$((waited+2))
+  done
+}
 
 printf "\n\033[1mInferHaven devcontainer smoke — flavor: %s\033[0m\n" "$FLAVOR"
 
@@ -79,10 +95,10 @@ hdr "Ollama reachability"
   && pass "OLLAMA_HOST=$OLLAMA_HOST" \
   || fail "OLLAMA_HOST=${OLLAMA_HOST:-<unset>}, expected http://ollama:11434"
 
-if curl -sf "${OLLAMA_HOST}/api/tags" >/dev/null 2>&1; then
+if wait_for "$SERVICE_WAIT" curl -sf "${OLLAMA_HOST}/api/tags"; then
   pass "ollama /api/tags responds"
 else
-  fail "ollama /api/tags unreachable"
+  fail "ollama /api/tags unreachable after ${SERVICE_WAIT}s"
 fi
 
 if [ "${SKIP_MODEL:-0}" != "1" ]; then
@@ -143,10 +159,12 @@ fi
 hdr "Default assistant (opencode)"
 
 if [ "${SKIP_OPENCODE:-0}" != "1" ]; then
-  if command -v opencode >/dev/null 2>&1; then
+  # opencode installs in the background (install-assistants.sh, async npm) — wait
+  # for it rather than single-shot, or CI flakes when the check wins the race.
+  if wait_for "$OPENCODE_WAIT" command -v opencode; then
     pass "opencode installed ($(opencode --version 2>&1 | head -1))"
   else
-    fail "opencode missing — INSTALL_ASSISTANTS=opencode not honored or still pending"
+    fail "opencode missing after ${OPENCODE_WAIT}s — INSTALL_ASSISTANTS=opencode not honored"
   fi
 else
   skip "opencode check (SKIP_OPENCODE=1)"
@@ -183,50 +201,44 @@ if [ "$FLAVOR" = "full-stack" ] && [ "${SKIP_FULL_STACK_EXTRAS:-0}" != "1" ]; th
     fail "haven service introspection failed"
   fi
 
-  if curl -sf --max-time 5 http://code-server:8443/login >/dev/null 2>&1 \
-     || curl -sf --max-time 5 http://code-server:8443/healthz >/dev/null 2>&1; then
+  if wait_for "$SERVICE_WAIT" sh -c 'curl -sf --max-time 5 http://code-server:8443/login || curl -sf --max-time 5 http://code-server:8443/healthz'; then
     pass "code-server reachable on internal hostname"
   else
-    fail "code-server unreachable on code-server:8443"
+    fail "code-server unreachable on code-server:8443 after ${SERVICE_WAIT}s"
   fi
 
-  # Caddy: distinguish DNS/connection failures (curl exit 6/7, http_code=000)
-  # from "Caddy responded" (any 2xx/3xx — 308 redirect is the expected response
-  # when TLS_MODE=internal/acme; 200 when TLS_MODE=off). Capture the HTTP code
-  # so the next failure is diagnosable without a separate run.
-  _caddy_code=$(curl -s -o /dev/null --max-time 5 -w '%{http_code}' http://caddy/status 2>/dev/null || true)
-  _caddy_curl_exit=$?
-  case "$_caddy_code" in
-    2??|3??)
-      pass "Caddy reachable on internal hostname (HTTP $_caddy_code)"
-      ;;
-    *)
-    # Re-try root path to catch the case where /status was removed but Caddy is up.
+  # Caddy: a 2xx/3xx means Caddy answered (308 redirect when TLS_MODE=internal/acme;
+  # 200 when TLS_MODE=off). Poll until it answers or SERVICE_WAIT elapses; on final
+  # failure capture both codes + dump logs so it's diagnosable without a rerun.
+  # shellcheck disable=SC2329  # invoked indirectly via wait_for "$@"
+  _caddy_ok() {
+    local code
+    code=$(curl -s -o /dev/null --max-time 5 -w '%{http_code}' http://caddy/status 2>/dev/null)
+    case "$code" in 2??|3??) return 0 ;; esac
+    code=$(curl -s -o /dev/null --max-time 5 -w '%{http_code}' http://caddy/ 2>/dev/null)
+    case "$code" in 2??|3??) return 0 ;; esac
+    return 1
+  }
+  if wait_for "$SERVICE_WAIT" _caddy_ok; then
+    pass "Caddy reachable on internal hostname"
+  else
+    _caddy_code=$(curl -s -o /dev/null --max-time 5 -w '%{http_code}' http://caddy/status 2>/dev/null || true)
     _caddy_root_code=$(curl -s -o /dev/null --max-time 5 -w '%{http_code}' http://caddy/ 2>/dev/null || true)
-    case "$_caddy_root_code" in
-      2??|3??)
-        pass "Caddy reachable on internal hostname (HTTP $_caddy_root_code on /, /status returned $_caddy_code)"
-        ;;
-      *)
-      fail "Caddy unreachable on caddy:80 (curl_exit=$_caddy_curl_exit, /status=$_caddy_code, /=$_caddy_root_code)"
-      # Dump container logs to ease diagnosis on the next run. Find the caddy
-      # container by compose-service label — works regardless of project name.
-      _caddy_id=$(docker ps -a --filter "label=com.docker.compose.service=caddy" --format '{{.ID}}' 2>/dev/null | head -1)
-      if [ -n "$_caddy_id" ]; then
-        printf '       Caddy container: %s — last 30 log lines:\n' "$_caddy_id"
-        docker logs --tail 30 "$_caddy_id" 2>&1 | sed 's/^/         /'
-      else
-        printf '       No container with label com.docker.compose.service=caddy found.\n'
-      fi
-        ;;
-    esac
-      ;;
-  esac
+    fail "Caddy unreachable on caddy:80 after ${SERVICE_WAIT}s (/status=$_caddy_code, /=$_caddy_root_code)"
+    # Find the caddy container by compose-service label — works regardless of project name.
+    _caddy_id=$(docker ps -a --filter "label=com.docker.compose.service=caddy" --format '{{.ID}}' 2>/dev/null | head -1)
+    if [ -n "$_caddy_id" ]; then
+      printf '       Caddy container: %s — last 30 log lines:\n' "$_caddy_id"
+      docker logs --tail 30 "$_caddy_id" 2>&1 | sed 's/^/         /'
+    else
+      printf '       No container with label com.docker.compose.service=caddy found.\n'
+    fi
+  fi
 
-  if curl -sf --max-time 5 http://localhost:9091/metrics.json >/dev/null 2>&1; then
+  if wait_for "$SERVICE_WAIT" curl -sf --max-time 5 http://localhost:9091/metrics.json; then
     pass "metrics-server serving on :9091"
   else
-    fail "metrics-server not responding on :9091"
+    fail "metrics-server not responding on :9091 after ${SERVICE_WAIT}s"
   fi
 elif [ "$FLAVOR" = "full-stack" ]; then
   hdr "Full-stack extras"
