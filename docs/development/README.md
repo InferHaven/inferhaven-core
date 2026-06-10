@@ -196,7 +196,9 @@ DEVCONTAINER_FLAVOR=full-stack scripts/devcontainer-smoke.sh
 #   SKIP_POSTCREATE         — postCreate idempotency rerun
 #   SKIP_FULL_STACK_EXTRAS  — code-server + caddy + metrics block
 #   SKIP_NESTED             — @devcontainers/cli existence check
-# Tuning: MODEL_WAIT=<seconds> (default 300)
+# Tuning (seconds): MODEL_WAIT     (default 300) — model appears in /api/tags
+#                   OPENCODE_WAIT  (default 180) — async opencode install finishes
+#                   SERVICE_WAIT   (default 60)  — ollama API, code-server, Caddy, metrics
 SKIP_MODEL=1 SKIP_OPENCODE=1 scripts/devcontainer-smoke.sh
 ```
 
