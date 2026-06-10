@@ -31,6 +31,12 @@ name: inferhaven-dev
 services:
   ollama:
     container_name: inferhaven-dev-ollama
+    environment:
+      # Pin the devcontainer's inline pull to the same small CPU model the
+      # workspace waits for. Without this, ollama falls through to the prod base
+      # default (docker-compose.yml) and pulls a different tag, so the model the
+      # workspace polls for never lands — postCreate then blocks the full 900s.
+      - DEFAULT_MODEL=${DEFAULT_MODEL:-qwen3:4b-instruct-2507-q4_K_M}
 
   workspace:
     container_name: inferhaven-dev-workspace
