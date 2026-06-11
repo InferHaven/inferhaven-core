@@ -1,0 +1,55 @@
+###############################################################################
+# Shellcheck lint gate
+#
+# InferHaven Core is mostly Bash, so a static lint gate is the cheapest way to
+# stop shellcheck regressions landing. Runs the SAME invocation contributors run
+# locally — `shellcheck $(git ls-files '*.sh')` at default (strictest) severity —
+# against a pinned shellcheck so a runner-image bump can never silently change
+# the result.
+#
+# Runs on:
+#   - PRs / pushes to main that touch any shell file (or this workflow)
+#   - Manual dispatch
+#
+# Cost: a few seconds of runner time (checkout + a static binary + one pass).
+###############################################################################
+name: shellcheck
+
+on:
+  pull_request:
+    paths:
+      - "**/*.sh"
+      - ".github/workflows/shellcheck.yml"
+  push:
+    branches: [main]
+    paths:
+      - "**/*.sh"
+      - ".github/workflows/shellcheck.yml"
+  workflow_dispatch:
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      # Bump deliberately; pinning keeps the gate reproducible across runner images.
+      SHELLCHECK_VERSION: v0.10.0
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install shellcheck (pinned)
+        run: |
+          curl -fsSL \
+            "https://github.com/koalaman/shellcheck/releases/download/${SHELLCHECK_VERSION}/shellcheck-${SHELLCHECK_VERSION}.linux.x86_64.tar.xz" \
+            | tar -xJ
+          sudo install "shellcheck-${SHELLCHECK_VERSION}/shellcheck" /usr/local/bin/shellcheck
+          shellcheck --version
+
+      - name: Run shellcheck
+        run: |
+          # Same file set + severity the dev guide documents. Word-splitting on
+          # $files is intentional (one arg per path).
+          mapfile -t files < <(git ls-files '*.sh')
+          printf 'Checking %d shell file(s):\n' "${#files[@]}"
+          printf '  %s\n' "${files[@]}"
+          LC_ALL=C.UTF-8 shellcheck "${files[@]}"

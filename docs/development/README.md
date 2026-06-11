@@ -167,7 +167,7 @@ InferHaven currently has no unit-test framework. The verification surface is:
 shellcheck $(git ls-files '*.sh')
 ```
 
-Run this before opening a PR. If your editor has a shellcheck integration, enable it for the repo. Exit code 0 with zero output is the bar for green.
+Run this before opening a PR. If your editor has a shellcheck integration, enable it for the repo. Exit code 0 with zero output is the bar for green. **CI enforces it:** the `shellcheck` workflow (`.github/workflows/shellcheck.yml`) runs this exact invocation against a pinned shellcheck on every PR/push that touches a `.sh` file, so a regression fails the build before review.
 
 **Locale gotcha.** If your shell is in the `C` locale (no UTF-8), shellcheck can crash with `commitBuffer: invalid argument (invalid character)` when its error context happens to include a non-ASCII byte from the source file. Set a UTF-8 locale before running:
 
