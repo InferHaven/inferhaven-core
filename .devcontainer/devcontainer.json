@@ -43,6 +43,9 @@
     }
   },
 
+  // Maps to the host port the codespaces compose publishes for ollama (it's a
+  // separate container; Codespaces forwards host-published ports, not docker-DNS
+  // service names).
   "forwardPorts": [11434],
   "portsAttributes": {
     "11434": { "label": "Ollama API", "onAutoForward": "silent" }
