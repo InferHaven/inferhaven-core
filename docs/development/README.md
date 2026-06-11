@@ -242,6 +242,24 @@ devcontainer up --workspace-folder . --config .devcontainer/full-stack/devcontai
 
 **GPU passthrough (full-stack only).** Uncomment the GPU block in `docker-compose.yml` exactly as documented for production — the override file deliberately does not touch it.
 
+**Running the full-stack flavor in GitHub Codespaces.** The full-stack flavor is built for **own-hardware dogfooding** (a dev InferHaven inside a prod InferHaven) and for local devcontainer clients (VS Code Dev Containers / DevPod), where every service works. It *also* boots in GitHub Codespaces — useful for surfacing Codespaces-specific bugs — but a few things are limited by the Codespaces platform itself (the `*.app.github.dev` forwarded-port edge), not by InferHaven. The compose override now publishes the stack ports to the host (`caddy:80`, `code-server:8443`, `ollama:11434`, `workspace:2222→22`) so Codespaces can forward them; the caveats below remain platform limits.
+
+| In Codespaces | Status | Why / what to do |
+|---|---|---|
+| Ollama API (`:11434`), Caddy status + `/api` + `/v1` (`:80`), opencode/aider | ✅ Works | Set the forwarded port **visibility to Public** for external API clients (else they hit GitHub's auth wall). First inference **cold-loads** the model on CPU and may time out — just retry; it's resident after. |
+| Bundled **code-server** web IDE (`:8443` and Caddy `/ide`) | ❌ Doesn't work | The workbench's management WebSocket can't traverse the github.dev forwarded-port edge (`close 1006` → "File system provider … not available"), and it's redundant with the Codespaces native editor. **Use the Codespaces editor.** Works normally on own hardware / local devcontainers (no edge in the path). |
+| Workspace **SSH** (`:2222`) | ⚠️ Not over the URL | `*.app.github.dev` is HTTPS-only and can't carry raw SSH. Use the `gh` CLI (below). Works directly (`ssh -p 2222 haven@localhost`) on own hardware. |
+
+```bash
+# SSH into a Codespace's workspace container from your laptop:
+gh codespace ssh                       # direct shell
+# or expose 2222 as a real local TCP port, then ssh to it:
+gh codespace ports forward 2222:2222   # leave running in one terminal
+ssh -p 2222 haven@localhost            # in another (needs AUTHORIZED_KEYS set at create time)
+```
+
+> **Resource note:** the full stack (ollama + Caddy + code-server) plus the Codespaces native editor is tight on a free 4-core machine — expect CPU contention. For Codespaces specifically, prefer the slim **`codespaces`** flavor; reserve **`full-stack`** for own-hardware dogfooding. The slim flavor omits `2222` on purpose to stay light.
+
 **Nested devcontainer (dev-in-prod).** Two helpers, depending on the cloned project's `devcontainer.json` shape:
 
 - **`haven devcontainer up`** — build-based projects (single `image:` / `build:` in `devcontainer.json`, no `dockerComposeFile`). Injects an explicit `workspaceMount` pointing at the translated host path and hands that to `@devcontainers/cli` against the shared docker socket.
