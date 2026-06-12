@@ -19,7 +19,7 @@
 # upgrade flow is documented in CONTRIBUTING.md.
 ###############################################################################
 
-FROM ubuntu:24.04
+FROM ubuntu:26.04
 
 ARG DEBIAN_FRONTEND=noninteractive
 
