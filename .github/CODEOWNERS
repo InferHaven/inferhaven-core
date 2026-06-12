@@ -1,0 +1,4 @@
+# Code owners for InferHaven Core.
+# Every change requires review from a maintainer before merge
+# (enforced by "Require review from Code Owners" in the main branch ruleset).
+* @NimbusSage

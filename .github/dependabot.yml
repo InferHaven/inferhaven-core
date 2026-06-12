@@ -1,0 +1,12 @@
+version: 2
+updates:
+  # Keep the pinned GitHub Actions in .github/workflows current.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+  # Watch the workspace image base / FROM pins.
+  - package-ecosystem: docker
+    directory: "/docker/workspace"
+    schedule:
+      interval: weekly
