@@ -52,7 +52,7 @@ InferHaven is your own private AI coding server: a self-hostable Docker stack th
 - **Real security** — leverages Docker for a secure dev environment; SSH is key-only
 - **Fast, reproducible builds** — BuildKit cache mounts make warm rebuilds < 30s
 - **Multi-user** — Provision extra users with their own SSH keys via `.env`
-- **Devcontainer-ready** — works with VS Code Dev Containers, GitHub Codespaces, DevPod, JetBrains Gateway, and headless `@devcontainers/cli`. Two flavors ship: a lightweight Codespaces flavor for CPU-only quickstarts and a full-stack flavor that boots the same production services (web IDE + Caddy) with optional GPU passthrough. Nested devcontainers (dev-in-prod) supported via `haven devcontainer`.
+- **Devcontainer-ready** — works with VS Code Dev Containers, GitHub Codespaces, DevPod, JetBrains Gateway, and headless `@devcontainers/cli`. Two flavors ship: a lightweight Codespaces flavor for CPU-only quickstarts and a full-stack flavor that boots the same production services (web IDE + Caddy) with optional GPU passthrough. Nested devcontainers (dev-in-prod) supported via the `haven devcontainer` command.
 - **Backup & restore** — `haven backup configure` sets up an rclone remote interactively; `haven backup push <remote:path>` snapshots home directory and harness configs.
 
 ## Why not just wire it up myself?
