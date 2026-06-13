@@ -1,0 +1,43 @@
+###############################################################################
+# Announce a published release in Discord #announcements, pinging @Releases.
+#
+# Fires only when a GitHub Release is published (not on drafts, not on plain
+# tag pushes). Calls a Discord channel webhook; the role ping works via
+# allowed_mentions, so @Releases can stay non-mentionable for everyone else.
+#
+# Setup (one-time):
+#   1. Discord #announcements → Integrations → Webhooks → New Webhook → copy URL.
+#   2. Discord (Developer Mode on) → Server Settings → Roles → @Releases →
+#      Copy Role ID.
+#   3. GitHub repo → Settings → Secrets and variables → Actions:
+#        - Secret   DISCORD_RELEASE_WEBHOOK   = the webhook URL
+#        - Variable DISCORD_RELEASES_ROLE_ID  = the role ID
+###############################################################################
+name: announce-release
+
+on:
+  release:
+    types: [published]
+
+permissions: {}   # no repo token needed; this only calls Discord
+
+jobs:
+  discord:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping #announcements
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
+          ROLE_ID: ${{ vars.DISCORD_RELEASES_ROLE_ID }}
+          NAME: ${{ github.event.release.name }}
+          TAG: ${{ github.event.release.tag_name }}
+          URL: ${{ github.event.release.html_url }}
+        run: |
+          # Build JSON with jq so release names with quotes can't break the payload.
+          payload=$(jq -n \
+            --arg content "<@&${ROLE_ID}> 🚢 **${NAME:-$TAG}** is out — ${URL}" \
+            --arg role "${ROLE_ID}" \
+            '{content: $content, allowed_mentions: {roles: [$role]}}')
+          curl -fsS -X POST "$WEBHOOK" \
+            -H 'Content-Type: application/json' \
+            -d "$payload"
