@@ -90,7 +90,9 @@ repository:
 - The default Caddy routing and TLS configuration in `docker/caddy/`.
 - The optional cloud agent service (`--profile cloud`) as built and configured
   in this repository.
-- Official tagged releases and the published `inferhaven-core` images.
+- Official tagged source releases of this repository (the stack images are built
+  locally from the `docker/` files at deploy time; there is no published core
+  image to pull).
 
 **Out of scope:**
 
