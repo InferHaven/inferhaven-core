@@ -62,6 +62,33 @@ gpg --encrypt --armor --recipient lighthouse@inferhaven.com report.txt
 If you do not receive an acknowledgement within the window below, see
 [Contact and escalation](#contact-and-escalation).
 
+## Verifying our `security.txt`
+
+Our [`security.txt`](https://inferhaven.com/.well-known/security.txt) is OpenPGP
+cleartext-signed with the same organization key described above. To confirm it is
+authentic:
+
+```bash
+# Import the key (repo copy, or the stable URL)
+gpg --import inferhaven_pub.asc        # or: curl -s https://inferhaven.com/pgpkey.asc | gpg --import
+
+# Verify the signed file
+curl -s https://inferhaven.com/.well-known/security.txt | gpg --verify
+```
+
+A `Good signature` line, made by signing subkey
+`83BB 8610 7868 5655 60E4  52FE C075 355A E78E FD6D`, means the file is authentic.
+
+GnuPG will also print **"This key is not certified with a trusted signature."**
+That is expected — it only means *you* have not personally certified our key, not
+that anything is wrong with the signature. After you have checked the fingerprint
+above against an independent source, you can silence it with a local
+(non-exportable) certification:
+
+```bash
+gpg --lsign-key 499280D5D75E3A4F837C6A6885D8E0970D05CEC0
+```
+
 ## What to include in a report
 
 A good report lets us reproduce and triage quickly. Where possible, include:
