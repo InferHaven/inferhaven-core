@@ -73,6 +73,7 @@ cmd_help() {
   echo "    cp <source> <dest>        Copy / rename a model"
   echo "    chat [model]              Interactive chat (default: \$DEFAULT_MODEL)"
   echo "    run <model> [prompt]      Run a model (interactive or one-shot with a prompt)"
+  echo "    bench [model] [opts]      Benchmark tokens/sec (--tokens N --prompt \"..\" --runs K --json)"
   echo "    push <model>              Push a model to ollama.com"
   echo "    signin                    Authenticate with ollama.com"
   echo "    signout                   Sign out of ollama.com"
@@ -194,6 +195,8 @@ _opencode_config_path() {
 . /usr/local/lib/haven/haven-sync.sh
 # shellcheck source=/dev/null
 . /usr/local/lib/haven/haven-tune-detect.sh
+# shellcheck source=/dev/null
+. /usr/local/lib/haven/haven-bench.sh
 
 # Back-compat shims: callsites in this file invoke these names; new code should
 # use _haven_sync <tool> or _haven_sync_all directly.
@@ -1844,6 +1847,93 @@ cmd_run() {
       done
     printf '\n'
   fi
+}
+
+# ── haven bench — local model tokens/sec benchmark ────────────────────────────
+# Measures generation speed via Ollama /api/generate (non-stream). Headline
+# number = generation tok/s = eval_count / (eval_duration/1e9); eval_duration
+# excludes model load + prompt eval, so it's the honest decode rate even cold.
+# Ollama-only (uses /api/generate). Read-only — never writes a Modelfile.
+#   haven bench [model] [--tokens N] [--prompt "..."] [--runs K] [--json]
+cmd_bench() {
+  # defaults
+  local model="" tokens=256 runs=1 json=0
+  local prompt="Write a bash function that prints the first N primes."
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --prompt) prompt="$2"; shift 2 ;;
+      --json)   json=1;      shift   ;;
+      --tokens) tokens="$2"; shift 2 ;;
+      --runs)   runs="$2";   shift 2 ;;
+      -*)       echo "haven bench: unknown flag $1" >&2; exit 1 ;;
+      *)        model="$1";  shift   ;;
+    esac
+  done
+
+  model="${model:-${DEFAULT_MODEL:-qwen2.5-coder:7b}}"
+
+  # Guard 1: Ollama reachable? (fast-fail, don't hang)
+  if ! curl -sf --max-time 3 "${OLLAMA_URL}/api/tags" >/dev/null 2>&1; then
+    echo "Ollama service is not reachable!" >&2
+    exit 1
+  fi
+
+  # Guard 2: model present locally?
+  if ! _haven_models_list | grep -qxF "${model}"; then
+    echo "model '${model}' not found — pull it using: haven pull ${model}" >&2
+    exit 1
+  fi
+
+  # validate numeric flags before they reach jq --argjson / the loop
+  case "${tokens}" in ''|*[!0-9]*) echo "bench: --tokens must be a positive integer" >&2; exit 1 ;; esac
+  case "${runs}"   in ''|*[!0-9]*) echo "bench: --runs must be a positive integer"   >&2; exit 1 ;; esac
+  { [ "${tokens}" -ge 1 ] && [ "${runs}" -ge 1 ]; } || { echo "bench: --tokens and --runs must be >= 1" >&2; exit 1; }
+
+  # ── Block 3 (request) × Block 5 (--runs loop) ───────────────────────────────
+  local i body resp metrics results_json="[]"
+  for (( i=1; i<=runs; i++ )); do
+    # 3a. valid JSON body — jq escapes everything; --argjson keeps the number a number
+    body=$(jq -cn --arg m "${model}" --arg p "${prompt}" --argjson n "${tokens}" \
+          '{model:$m, prompt:$p, stream:false, options:{num_predict:$n, seed:0, temperature:0}}')
+    # 3b. POST non-stream → one JSON carrying the nanosecond timing fields
+    resp=$(curl -sf "${OLLAMA_URL}/api/generate" -H 'Content-Type: application/json' -d "${body}") \
+      || { echo "bench: generate request failed (run ${i}/${runs})" >&2; exit 1; }
+    # 3c. compute tok/s via the lib; append this run to the results array
+    metrics=$(printf '%s' "${resp}" | _bench_compute_metrics)
+    results_json=$(jq -c --argjson m "${metrics}" '. + [$m]' <<<"${results_json}")
+  done
+
+  # average the decode rate across runs; keep run-1 for prompt/load/total context
+  local gen_avg first
+  gen_avg=$(jq -r '[.[].gen_tps] | add / length' <<<"${results_json}")
+  first=$(jq -c '.[0]' <<<"${results_json}")
+
+  # ── Block 6 — machine-readable (--json) ─────────────────────────────────────
+  if [ "${json}" -eq 1 ]; then
+    jq -n --arg model "${model}" --argjson tokens "${tokens}" --argjson runs "${runs}" \
+          --argjson gen_tps_avg "${gen_avg}" --argjson results "${results_json}" \
+          '{model:$model, tokens:$tokens, runs:$runs, gen_tps_avg:$gen_tps_avg, results:$results}'
+    return 0
+  fi
+
+  # ── Block 4 — human-readable ────────────────────────────────────────────────
+  local avg_note=""
+  [ "${runs}" -gt 1 ] && avg_note=" (avg of ${runs} runs)"
+  printf '\n  %bInferHaven bench%b — %s\n' "${BOLD}" "${NC}" "${model}"
+  if [ "${runs}" -gt 1 ]; then
+    local idx=1 g
+    while IFS= read -r g; do
+      printf '  run %-2d        %7.1f tok/s\n' "${idx}" "${g}"
+      idx=$(( idx + 1 ))
+    done < <(jq -r '.[].gen_tps' <<<"${results_json}")
+  fi
+  printf '  %bgeneration%b   %7.1f tok/s  <- decode rate%s\n' "${GREEN}" "${NC}" "${gen_avg}" "${avg_note}"
+  printf '  prompt eval  %7.1f tok/s  (%s prompt tokens)\n' \
+         "$(jq -r '.prompt_tps // 0' <<<"${first}")" "$(jq -r '.prompt_eval_count // 0' <<<"${first}")"
+  printf '  load         %7.2f s     (run 1: weights -> VRAM)\n' "$(jq -r '.load_s // 0' <<<"${first}")"
+  printf '  total        %7.2f s     (run 1)\n' "$(jq -r '.total_s // 0' <<<"${first}")"
+  printf '  %bmethod%b       num_predict=%s, seed=0, temp=0, runs=%s\n\n' "${CYAN}" "${NC}" "${tokens}" "${runs}"
 }
 
 # ── haven push — push a model to ollama.com ───────────────────────────────────
@@ -4926,6 +5016,7 @@ case "${1:-help}" in
   untune)         shift; cmd_untune "$@" ;;
   chat)           shift; cmd_chat "$@" ;;
   run)            shift; cmd_run "$@" ;;
+  bench)          shift; cmd_bench "$@" ;;
   push)           shift; cmd_push "$@" ;;
   signin|login)   shift; cmd_signin "$@" ;;
   signout|logout) shift; cmd_signout "$@" ;;
