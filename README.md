@@ -191,6 +191,7 @@ haven chat [model]                      # interactive chat (defaults to DEFAULT_
 haven run <model>                       # same as chat — TTY interactive session
 haven run <model> "your prompt"         # one-shot: print response and exit (scriptable)
 echo "prompt" | haven run <model>       # pipe stdin into model
+haven bench [model]                     # benchmark tokens/sec (--tokens N --prompt ".." --runs K --json)
 
 # ollama.com account
 haven push <model>                      # push a model to ollama.com
