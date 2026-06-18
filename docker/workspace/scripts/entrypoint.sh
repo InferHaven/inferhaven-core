@@ -57,7 +57,10 @@ fi
 
 if [ "${_warm_boot}" -eq 0 ]; then
   echo "[InferHaven] Cold boot — ${_cold_reason}; running first-time setup..."
-  chown -R "${HAVEN_USER}:${HAVEN_USER}" "${HOME_DIR}"
+  # -R can race transient files (e.g. a zsh .zcompdump*.lock appearing then
+  # vanishing mid-sweep) → ENOENT. Tolerate it so set -e doesn't abort the
+  # entrypoint and exit the container. Matches the projects/.npm-global sweeps.
+  chown -R "${HAVEN_USER}:${HAVEN_USER}" "${HOME_DIR}" 2>/dev/null || true
   chmod 755 "${HOME_DIR}"
 
   # Pre-create standard tool directories — required before assistant installers run.
@@ -250,7 +253,10 @@ find "${HOME_DIR}/.tmux/resurrect" -name 'tmux_resurrect_*.txt' -mtime +"${_reta
 
 # ── Final ownership pass (only on cold boot — sentinel-gated) ───────────────
 if [ "${_warm_boot}" -eq 0 ]; then
-  chown -R "${HAVEN_USER}:${HAVEN_USER}" "${HOME_DIR}"
+  # -R can race transient files (e.g. a zsh .zcompdump*.lock appearing then
+  # vanishing mid-sweep) → ENOENT. Tolerate it so set -e doesn't abort the
+  # entrypoint and exit the container. Matches the projects/.npm-global sweeps.
+  chown -R "${HAVEN_USER}:${HAVEN_USER}" "${HOME_DIR}" 2>/dev/null || true
   mkdir -p "$(dirname "${INIT_SENTINEL}")"
   touch "${INIT_SENTINEL}"
   chown "${HAVEN_USER}:${HAVEN_USER}" "${INIT_SENTINEL}"
