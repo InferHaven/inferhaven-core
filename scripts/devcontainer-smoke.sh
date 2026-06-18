@@ -119,6 +119,27 @@ else
   printf "  \033[33mSKIP\033[0m model check (SKIP_MODEL=1)\n"
 fi
 
+hdr "haven bench"
+
+# wiring is model-independent — bench must be listed in help
+if haven help 2>/dev/null | grep -q "bench"; then
+  pass "haven bench wired (listed in help)"
+else
+  fail "haven bench not listed in 'haven help'"
+fi
+
+# a live measurement needs a model present
+if [ "${SKIP_MODEL:-0}" != "1" ]; then
+  if haven bench "${MODEL}" --tokens 16 --runs 1 --json 2>/dev/null \
+       | jq -e '.gen_tps_avg > 0' >/dev/null 2>&1; then
+    pass "haven bench returned a positive gen_tps_avg for ${MODEL}"
+  else
+    fail "haven bench did not return a positive gen_tps_avg for ${MODEL}"
+  fi
+else
+  skip "haven bench live run (SKIP_MODEL=1)"
+fi
+
 # ─────────────────────────────────────────────────────────────────────────────
 if [ "${SKIP_DIND:-0}" != "1" ]; then
   hdr "Docker-in-Docker"

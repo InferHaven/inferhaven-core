@@ -87,6 +87,11 @@ haven chat
 haven pull llama3.1:8b
 haven pull qwen2.5-coder:7b
 
+# Benchmark tokens/sec on your own hardware
+# "generation" is the decode rate (excludes model load + prompt eval) — the honest number.
+haven bench qwen2.5-coder:7b --runs 3     # average of 3 runs (recommended; prompt t/s is noisy on short prompts)
+haven bench qwen2.5-coder:7b --json       # machine-readable, for scripting / sharing
+
 # See installed harnesses and OpenCode config
 haven harness
 
