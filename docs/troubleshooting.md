@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Common issues and how to fix them. Run `haven doctor` first — it catches most problems automatically.
+Common issues and how to fix them. Run `haven doctor` first, it catches most problems automatically.
 
 ## Services won't start
 
@@ -127,10 +127,10 @@ haven pull qwen2.5-coder:7b
 
 ### Very slow AI responses
 
-1. **Check if GPU is being used:** `nvidia-smi` — if no GPU process listed, model is on CPU
+1. **Check if GPU is being used:** `nvidia-smi`, if no GPU process listed, model is on CPU
 2. **Model too large for RAM:** Use a smaller model (`3b` or `7b` for CPU)
 3. **First request is slow:** Ollama loads the model into memory on first request. Subsequent requests are faster.
-4. **Check available RAM:** `free -h` — Ollama needs 2-4x the model file size in RAM
+4. **Check available RAM:** `free -h`, Ollama needs 2-4x the model file size in RAM
 
 ### "model not found" errors
 
@@ -226,7 +226,7 @@ By default, the Ollama API is only accessible from within the Docker network. To
 ssh -L 11434:ollama:11434 -p 2222 haven@your-server-ip
 ```
 
-If you prefer to use the HTTPS Caddy proxy (`https://your-domain/v1/`) instead, see **[HTTPS with a private hostname](#https-with-a-private-hostname-self-signed-certificate)** below — you'll need to trust the Caddy root CA first.
+If you prefer to use the HTTPS Caddy proxy (`https://your-domain/v1/`) instead, see **[HTTPS with a private hostname](#https-with-a-private-hostname-self-signed-certificate)** below, you'll need to trust the Caddy root CA first.
 
 ### HTTPS with a private hostname (self-signed certificate)
 
@@ -239,9 +239,9 @@ When `DOMAIN` is set to a private hostname like `proxnas.lan`, `server.local`, o
 - Browser certificate warning when opening the web IDE or status page
 - `curl: (60) SSL certificate problem: unable to get local issuer certificate`
 
-Everything works over plain HTTP (bare IP or `localhost`) because no TLS is involved — the Caddy routing itself is correct. The issue is client-side trust only.
+Everything works over plain HTTP (bare IP or `localhost`) because no TLS is involved, the Caddy routing itself is correct. The issue is client-side trust only.
 
-**Quick fix — export and trust the Caddy root CA:**
+**Quick fix, export and trust the Caddy root CA:**
 
 ```bash
 # From the host
@@ -251,7 +251,7 @@ Everything works over plain HTTP (bare IP or `localhost`) because no TLS is invo
 haven caddy cert
 ```
 
-This exports `caddy-root.crt` and prints per-platform install instructions. The cert only changes if you recreate the `caddy_data` volume — once trusted it stays valid indefinitely.
+This exports `caddy-root.crt` and prints per-platform install instructions. The cert only changes if you recreate the `caddy_data` volume, once trusted it stays valid indefinitely.
 
 **Per-platform trust instructions:**
 
@@ -262,14 +262,14 @@ sudo security add-trusted-cert -d -r trustRoot \
   -k /Library/Keychains/System.keychain ./caddy-root.crt
 ```
 
-Linux — Debian / Ubuntu:
+Linux, Debian / Ubuntu:
 
 ```bash
 sudo cp ./caddy-root.crt /usr/local/share/ca-certificates/inferhaven-caddy.crt
 sudo update-ca-certificates
 ```
 
-Linux — RHEL / Fedora / Arch:
+Linux, RHEL / Fedora / Arch:
 
 ```bash
 sudo trust anchor --store ./caddy-root.crt
@@ -281,7 +281,7 @@ Windows (cmd as Administrator):
 certutil -addstore Root caddy-root.crt
 ```
 
-**Node.js tools — VS Code extensions (Cline, Continue, RooCode, etc.):**
+**Node.js tools, VS Code extensions (Cline, Continue, RooCode, etc.):**
 
 VS Code extensions run in VS Code's own Node.js runtime, which does not inherit the OS trust store. You must point Node.js at the cert explicitly via `NODE_EXTRA_CA_CERTS`.
 
@@ -306,7 +306,7 @@ curl --cacert ./caddy-root.crt https://your-domain.lan/api/tags
 
 **Zero-config alternative:**
 
-If you don't want to manage cert trust, use an SSH tunnel — no cert changes needed on the client:
+If you don't want to manage cert trust, use an SSH tunnel, no cert changes needed on the client:
 
 ```bash
 ssh -L 11434:ollama:11434 -p 2222 haven@your-server-ip
@@ -338,7 +338,7 @@ Mosh ships with the workspace image. If `mosh haven@<host>` reports "missing mos
 
 ### Build fails with `invalid user index: -1`
 
-BuildKit `COPY --link` cannot resolve named users at link-time. The Dockerfile uses numeric `--chown=1000:1000` (haven UID) — if you forked the image and added `--chown=haven:haven` to a `COPY --link`, change it back to numeric.
+BuildKit `COPY --link` cannot resolve named users at link-time. The Dockerfile uses numeric `--chown=1000:1000` (haven UID), if you forked the image and added `--chown=haven:haven` to a `COPY --link`, change it back to numeric.
 
 ### "supercronic not found" / scheduled tasks not running
 
@@ -378,9 +378,9 @@ The per-user env var is uppercase: `AUTHORIZED_KEYS_ALICE` (not `_alice`). Resta
 
 ### Extra user has no `~/.inferhaven`
 
-Extra users get a minimal `~/.inferhaven` with `OLLAMA_HOST` only — no API keys (those live in the primary `haven` user's `~/.inferhaven`). Each extra user can `cp ~haven/.inferhaven ~/` if they want shared keys, or set their own.
+Extra users get a minimal `~/.inferhaven` with `OLLAMA_HOST` only, no API keys (those live in the primary `haven` user's `~/.inferhaven`). Each extra user can `cp ~haven/.inferhaven ~/` if they want shared keys, or set their own.
 
-### Provisioning skipped — "/home is not a volume mount"
+### Provisioning skipped: "/home is not a volume mount"
 
 `HAVEN_EXTRA_USERS` requires the workspace volume to be mounted at `/home` (so each user gets a persistent home). Older deployments mount it at `/home/haven`. Migration is one-time:
 
@@ -392,13 +392,13 @@ docker compose up -d workspace                     # auto-runs haven-migrate-hom
 docker compose logs workspace | grep migrate-home  # confirm migration completed
 ```
 
-The migration script (`/usr/local/bin/haven-migrate-home`) re-nests existing files into a `/home/haven/` subdir on the volume. It is idempotent — safe to re-run. A sentinel `~/.haven/.layout-migrated` prevents repeat work.
+The migration script (`/usr/local/bin/haven-migrate-home`) re-nests existing files into a `/home/haven/` subdir on the volume. It is idempotent, safe to re-run. A sentinel `~/.haven/.layout-migrated` prevents repeat work.
 
 ---
 
 ## Tooling notes
 
-### `mise` — `unknown field in /tmp/.mise.toml: node`
+### `mise`: `unknown field in /tmp/.mise.toml: node`
 
 `.mise.toml` requires a `[tools]` table; bare entries at the file root are ignored. Copy the shipped example:
 
@@ -409,9 +409,9 @@ cd /your/project && mise install
 
 The example shows the correct `[tools]` syntax for node, python, and go.
 
-### `atuin status` — "You are not logged in to a sync server"
+### `atuin status`: "You are not logged in to a sync server"
 
-This is by design — `atuin` ships in local-only mode (no cloud history sync). Local history capture works without login. To enable cross-device sync:
+This is by design, `atuin` ships in local-only mode (no cloud history sync). Local history capture works without login. To enable cross-device sync:
 
 ```bash
 atuin register -u <user> -e <email>   # or: atuin login
@@ -419,7 +419,7 @@ atuin register -u <user> -e <email>   # or: atuin login
 
 See [atuin.sh](https://atuin.sh) for self-hosting the sync server.
 
-### `haven tmate` — web URL returns 503
+### `haven tmate`: web URL returns 503
 
 The 503 originates upstream at `tmate.io` and is intermittent. SSH still works. To check session state:
 

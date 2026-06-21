@@ -1,4 +1,4 @@
-# aider — InferHaven Integration Guide
+# aider: InferHaven Integration Guide
 
 [aider](https://aider.chat) is a terminal-based AI pair programming tool. It works directly with your git repos to make AI-assisted code changes. It connects perfectly to InferHaven's Ollama instance.
 

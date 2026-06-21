@@ -1,4 +1,4 @@
-# Claude Code — InferHaven Integration Guide
+# Claude Code: InferHaven Integration Guide
 
 [Claude Code](https://docs.anthropic.com/en/docs/claude-code) is Anthropic's CLI harness. While Claude Code primarily uses Anthropic's API, you can use it alongside InferHaven in a powerful hybrid workflow: Claude Code for complex reasoning and multi-file changes, InferHaven's local models for quick completions, privacy-sensitive code, and offline work.
 
@@ -6,7 +6,7 @@
 
 ### Option A: Pre-configure in .env (recommended)
 
-The easiest path — configure everything before the container starts:
+The easiest path, configure everything before the container starts:
 
 ```bash
 # In your inferhaven-core/.env file:
@@ -28,7 +28,7 @@ ssh -p 2222 haven@localhost
 npm install -g @anthropic-ai/claude-code
 ```
 
-Set your API key — edit `~/.inferhaven` for persistence across sessions:
+Set your API key, edit `~/.inferhaven` for persistence across sessions:
 
 ```bash
 # Append to ~/.inferhaven (sourced by every login shell)
@@ -61,18 +61,18 @@ When using Claude Code inside InferHaven:
 │                                         │
 │  ┌──────────┐      ┌────────────────┐   │
 │  │  Claude  │      │   Your Code    │   │
-│  │ Code CLI │ ───► │   (private,    │   │
+│  │ Code CLI │ ───> │   (private,    │   │
 │  └────┬─────┘      │    on disk)    │   │
 │       │            └────────────────┘   │
 │       │ Prompts only                    │
-│       ▼                                 │
+│       v                                 │
 │  ┌──────────┐                           │
 │  │ Anthropic│ (code snippets in prompts │
 │  │   API    │  go to Anthropic)         │
 │  └──────────┘                           │
 │                                         │
 │  ┌──────────┐      ┌────────────────┐   │
-│  │  Ollama  │ ───► │  100% private  │   │
+│  │  Ollama  │ ───> │  100% private  │   │
 │  │  (local) │      │  (never leaves │   │
 │  └──────────┘      │   the server)  │   │
 │                    └────────────────┘   │

@@ -1,6 +1,6 @@
-# Continue.dev — InferHaven Integration Guide
+# Continue.dev: InferHaven Integration Guide
 
-[Continue.dev](https://continue.dev) is an open-source AI coding assistant available as a CLI (`cn`), a VS Code / code-server extension, and a JetBrains plugin. InferHaven ships the `cn` CLI inside the workspace container and keeps its config in sync with your installed Ollama models. The browser editor extension is **not** auto-installed — see [Install the editor extension yourself](#install-the-editor-extension-yourself) below.
+[Continue.dev](https://continue.dev) is an open-source AI coding assistant available as a CLI (`cn`), a VS Code / code-server extension, and a JetBrains plugin. InferHaven ships the `cn` CLI inside the workspace container and keeps its config in sync with your installed Ollama models. The browser editor extension is **not** auto-installed, see [Install the editor extension yourself](#install-the-editor-extension-yourself) below.
 
 ## What InferHaven manages
 
@@ -16,7 +16,7 @@ This configures InferHaven to:
 2. Write `~/.continue/config.yaml` listing every installed Ollama model + any cloud providers you've configured in `.env`.
 3. Re-sync that file after every `haven pull`, `haven tune`, and `haven remove`.
 
-That's it. Nothing is installed into the code-server browser editor — InferHaven does not modify your IDE's extension state.
+That's it. Nothing is installed into the code-server browser editor, InferHaven does not modify your IDE's extension state.
 
 ### Cloud providers auto-configured from `.env`
 
@@ -31,15 +31,15 @@ When a key is present, the matching provider entry is added to `~/.continue/conf
 
 ### Opt out of auto-sync
 
-`touch ~/.continue/.no-autosync` — InferHaven will never rewrite `config.yaml` again.
+`touch ~/.continue/.no-autosync`, InferHaven will never rewrite `config.yaml` again.
 
 ### Customizing models without losing your changes
 
-The managed config has a `# _haven: user-models` sentinel near the bottom. Add any extra models (additional cloud providers, alternate model versions, non-Ollama providers) **below** the sentinel — InferHaven carries that section forward verbatim on every sync. Roles assigned to managed models are also preserved.
+The managed config has a `# _haven: user-models` sentinel near the bottom. Add any extra models (additional cloud providers, alternate model versions, non-Ollama providers) **below** the sentinel, InferHaven carries that section forward verbatim on every sync. Roles assigned to managed models are also preserved.
 
 ### `cn` first-run login
 
-The `cn` CLI requires a one-time login with a Continue.dev account on first run — this is a Continue CLI requirement unrelated to which models or API keys are configured. After authenticating once, the session token is stored in `~/.continue/` on the `workspace_home` volume and persists across container restarts.
+The `cn` CLI requires a one-time login with a Continue.dev account on first run, this is a Continue CLI requirement unrelated to which models or API keys are configured. After authenticating once, the session token is stored in `~/.continue/` on the `workspace_home` volume and persists across container restarts.
 
 ```bash
 # From inside the workspace (after SSH or via `haven tmux`)
@@ -78,8 +78,8 @@ For a local IDE installation connecting to a remote InferHaven server via SSH tu
 
 ### Installation
 
-**VS Code / code-server** — install [Continue](https://marketplace.visualstudio.com/items?itemName=Continue.continue) from the marketplace.
-**JetBrains** — install Continue from Settings → Plugins.
+**VS Code / code-server**: install [Continue](https://marketplace.visualstudio.com/items?itemName=Continue.continue) from the marketplace.
+**JetBrains**: install Continue from Settings → Plugins.
 
 ### Configuration
 
@@ -155,7 +155,7 @@ models:
 
 ## Features that work with InferHaven
 
-- **CLI agent:** `cn -p "your task"` runs Continue headlessly from the workspace terminal — the main supported path.
+- **CLI agent:** `cn -p "your task"` runs Continue headlessly from the workspace terminal, the main supported path.
 - **Chat / Edit / Autocomplete:** all work in the IDE extension once you install and point it at Ollama.
 - **Context providers:** `@file`, `@folder`, `@codebase` work normally.
 
@@ -164,7 +164,7 @@ models:
 **`cn` not found:**
 
 - Confirm `continue` is in `INSTALL_ASSISTANTS` and the workspace has finished post-install: `cat ~/.haven/install.log | grep continue`
-- Open a fresh login shell (`bash -l`) — `cn` lives in `~/.npm-global/bin/`.
+- Open a fresh login shell (`bash -l`), `cn` lives in `~/.npm-global/bin/`.
 
 **"Connection refused" from `cn` or the IDE extension:**
 
@@ -174,7 +174,7 @@ models:
 
 **Slow responses:**
 
-- Large models on CPU are slow — pick smaller quant for CPU, 32B+ for GPU.
+- Large models on CPU are slow, pick smaller quant for CPU, 32B+ for GPU.
 - Check resources inside the workspace: `htop`, `haven gpu-info`.
 
 **Model not found:**
@@ -184,15 +184,15 @@ models:
 
 **After `cn` login, only cloud models appear:**
 
-- If you logged in to Continue Hub interactively, Continue may have rewritten `config.yaml`. Run `haven pull <any-model>` to restore — InferHaven rebuilds the full config (Ollama + any cloud keys from `.env`).
+- If you logged in to Continue Hub interactively, Continue may have rewritten `config.yaml`. Run `haven pull <any-model>` to restore, InferHaven rebuilds the full config (Ollama + any cloud keys from `.env`).
 
 **PostHog network errors in the terminal** (`ERR_TLS_CERT_ALTNAME_INVALID` / `app.posthog.com`):
 
-- Harmless — Continue's analytics client hitting a local DNS intercept. No action needed.
+- Harmless, Continue's analytics client hitting a local DNS intercept. No action needed.
 
 **Clipboard not working / extension assets failing to render (private domain or IP):**
 
-The browser Clipboard API and extension asset loading both require a **secure context** (HTTPS or `localhost`). If you access code-server over plain HTTP — typically when `DOMAIN` is an IP address — clipboard is blocked at the browser level and extensions may fail to render assets.
+The browser Clipboard API and extension asset loading both require a **secure context** (HTTPS or `localhost`). If you access code-server over plain HTTP, typically when `DOMAIN` is an IP address, clipboard is blocked at the browser level and extensions may fail to render assets.
 
 *When does this apply?*
 

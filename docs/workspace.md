@@ -6,17 +6,17 @@ Features available inside the InferHaven workspace after SSH login or in the web
 
 ## Model tuning
 
-`haven tune <model>` applies coding-assistant optimisations to a model in-place — no re-download. Runs automatically after every `haven pull` and on container boot for `DEFAULT_MODEL`. Set `HAVEN_AUTO_TUNE=0` in `.env` to disable.
+`haven tune <model>` applies coding-assistant optimisations to a model in-place, no re-download. Runs automatically after every `haven pull` and on container boot for `DEFAULT_MODEL`. Set `HAVEN_AUTO_TUNE=0` in `.env` to disable.
 
 ### Safe-by-default principle
 
-Tuning is **only allowed to help, never hurt**. The classifier matches only known-tested model versions; anything it doesn't recognise — newer variants, custom finetunes, heavy-quant HF GGUFs — falls through to `generic`, which writes nothing but `num_ctx`. `TEMPLATE`, `SYSTEM`, and every other `PARAMETER` line are preserved verbatim. If a name fits a tested family, a Modelfile rewrite happens; otherwise the model is left alone except for the context-window cap.
+Tuning is **only allowed to help, never hurt**. The classifier matches only known-tested model versions; anything it doesn't recognise, newer variants, custom finetunes, heavy-quant HF GGUFs, falls through to `generic`, which writes nothing but `num_ctx`. `TEMPLATE`, `SYSTEM`, and every other `PARAMETER` line are preserved verbatim. If a name fits a tested family, a Modelfile rewrite happens; otherwise the model is left alone except for the context-window cap.
 
 What a full tune does:
 
-1. **Stop tokens** — correct end-of-response tokens for the model's family
-2. **Context window** — sets `num_ctx` to `HAVEN_CTX` (default `32768`), capped at the model's native GGUF max so KV-cache never exceeds the weights' support
-3. **Template** — family-specific Go template injected only where it has been validated. Qwen2.5 and Gemma2/3 keep their embedded Jinja templates (replacing them silently breaks tool calls).
+1. **Stop tokens**: correct end-of-response tokens for the model's family
+2. **Context window**: sets `num_ctx` to `HAVEN_CTX` (default `32768`), capped at the model's native GGUF max so KV-cache never exceeds the weights' support
+3. **Template**: family-specific Go template injected only where it has been validated. Qwen2.5 and Gemma2/3 keep their embedded Jinja templates (replacing them silently breaks tool calls).
 
 After any tune, installed harness configs (`opencode`, `aider`, `qwencode`, `pi`, `goose`, `continue`, `avante`) are re-rendered automatically.
 
@@ -33,7 +33,7 @@ After any tune, installed harness configs (`opencode`, `aider`, `qwencode`, `pi`
 | `codellama`, `code-llama` | `codellama` | inject Llama2 `<<SYS>>` | `</s>` |
 | `gemma2`, `gemma3` | `gemma` | preserve embedded | `<end_of_turn>` |
 
-### Falls to `generic` (safe defaults — only `num_ctx`)
+### Falls to `generic` (safe defaults: only `num_ctx`)
 
 - Qwen 3.5 / 3.6 / 3.7+ (incl. heavy-quant `hf.co/unsloth/Qwen3.6-…`)
 - Llama 2 / Llama 4
@@ -74,7 +74,7 @@ The first time `haven tune` (or `haven params set`/`reset`) modifies a model, th
 haven untune qwen3:8b
 ```
 
-This rewrites the Modelfile to the byte-identical pre-haven copy and unloads the model. Useful if a tune broke something or you want to A/B compare. The backup is retained after untune — you can re-tune and untune freely.
+This rewrites the Modelfile to the byte-identical pre-haven copy and unloads the model. Useful if a tune broke something or you want to A/B compare. The backup is retained after untune, you can re-tune and untune freely.
 
 ```bash
 haven tune qwen2.5-coder:7b
@@ -100,7 +100,7 @@ Progress is tracked in `~/.haven/downloads/` and visible in the tmux status bar 
 
 ## Persistent packages
 
-The workspace home directory (`/home/haven`) is a Docker volume — everything in it survives `docker compose down && docker compose up`. Language-specific installs (`go install`, `cargo install`, `uv tool install`, `npm install -g`, `pip install --user`) all land in the home volume by default.
+The workspace home directory (`/home/haven`) is a Docker volume, everything in it survives `docker compose down && docker compose up`. Language-specific installs (`go install`, `cargo install`, `uv tool install`, `npm install -g`, `pip install --user`) all land in the home volume by default.
 
 For apt packages, use `haven apt` instead of `sudo apt install` to persist them across container restarts.
 
@@ -110,27 +110,27 @@ For apt packages, use `haven apt` instead of `sudo apt install` to persist them 
 
 InferHaven ships with [Starship](https://starship.rs) enabled by default (`INSTALL_STARSHIP=1`). It shows git status, active language versions, background job count (surfaces `haven pullback` workers), and command duration for slow operations.
 
-**Nerd Font (recommended):** Install [JetBrains Mono Nerd Font](https://www.nerdfonts.com) — or any Nerd Font — in your **terminal emulator** (client-side, not in the container).
+**Nerd Font (recommended):** Install [JetBrains Mono Nerd Font](https://www.nerdfonts.com), or any Nerd Font, in your **terminal emulator** (client-side, not in the container).
 
 **Switching prompt mode:** Use `haven starship` from inside the workspace to manage the badge style:
 
 | Command | Effect |
 | --------- | -------- |
 | `haven starship` | Show current mode, version, and config path |
-| `haven starship emoji` | Switch badge to 🏡 IH — no Nerd Font required |
+| `haven starship emoji` | Switch badge to 🏡 IH, no Nerd Font required |
 | `haven starship nf` | Switch badge to 󰚊 IH (Nerd Font icon) |
 | `haven starship reset` | Restore InferHaven default config |
 | `haven starship edit` | Open `~/.config/starship.toml` in `$EDITOR` |
 
 The switch patches `~/.config/starship.toml` directly, so it persists across reconnects and tmux reattaches. Open a new shell after switching (`exec $SHELL -l`) to see the change.
 
-To opt out entirely: set `INSTALL_STARSHIP=0` in `.env`. Customise by editing `~/.config/starship.toml` — InferHaven never overwrites it after the first start.
+To opt out entirely: set `INSTALL_STARSHIP=0` in `.env`. Customise by editing `~/.config/starship.toml`, InferHaven never overwrites it after the first start.
 
 ---
 
 ## Web IDE terminal
 
-The code-server integrated terminal (opened with `` Ctrl+` `` or from the Terminal menu) automatically SSH's into the workspace container, giving you the full environment — zsh, all installed tools, tmux, and your persistent home directory — without leaving the browser.
+The code-server integrated terminal (opened with `` Ctrl+` `` or from the Terminal menu) automatically SSH's into the workspace container, giving you the full environment, zsh, all installed tools, tmux, and your persistent home directory, without leaving the browser.
 
 This is wired up automatically on first start: code-server generates a dedicated keypair, authorizes it in the workspace, and configures itself as the default terminal profile. No manual setup required.
 
@@ -144,9 +144,9 @@ haven tmux   # attach to the always-running Haven session
 
 ## Status bar alerts
 
-A background watcher monitors the Ollama container for OOM kills and unexpected crashes. When an event is detected, a bold red **⚠ N ALERT** indicator appears in the tmux status bar. Click the right side of the status bar to open the alert viewer — alerts are shown in an fzf list, select and press Enter to dismiss (permanently deleted). Once all alerts are cleared the popup reverts to the normal system monitor.
+A background watcher monitors the Ollama container for OOM kills and unexpected crashes. When an event is detected, a bold red **⚠ N ALERT** indicator appears in the tmux status bar. Click the right side of the status bar to open the alert viewer, alerts are shown in an fzf list, select and press Enter to dismiss (permanently deleted). Once all alerts are cleared the popup reverts to the normal system monitor.
 
-The status bar pulls metrics (CPU / RAM / GPU / VRAM / disk) from the in-container metrics server on `:9091` — a single cached source that eliminates `docker exec` calls in the 5 s tmux refresh loop. The same data is available via `curl localhost:9091/metrics.json` if you want to script against it.
+The status bar pulls metrics (CPU / RAM / GPU / VRAM / disk) from the in-container metrics server on `:9091`, a single cached source that eliminates `docker exec` calls in the 5 s tmux refresh loop. The same data is available via `curl localhost:9091/metrics.json` if you want to script against it.
 
 ---
 
@@ -157,20 +157,20 @@ The workspace ships a curated set of CLI tools so you don't have to install them
 | Tool | Purpose |
 | ---- | ------- |
 | `mosh` | Connection-resilient SSH over UDP. Survives flaky WiFi, instant typing on high-latency links. Default UDP range `60000-60010` (override via `MOSH_PORTS` in `.env`). |
-| `gh` | GitHub CLI — `gh pr create`, `gh issue list`, etc. Authenticate with `GITHUB_TOKEN` in `.env` or `gh auth login`. |
-| `lazygit` | TUI git client — review/stage/commit/rebase without leaving the terminal. |
+| `gh` | GitHub CLI, `gh pr create`, `gh issue list`, etc. Authenticate with `GITHUB_TOKEN` in `.env` or `gh auth login`. |
+| `lazygit` | TUI git client, review/stage/commit/rebase without leaving the terminal. |
 | `delta` | Side-by-side syntax-highlighted git diffs. Wired into git via the default `~/.gitconfig` (`pager.diff = delta`). |
-| `direnv` | Per-project `.envrc` loader — auto-exports environment variables when you `cd` into a directory. |
-| `zoxide` | Smart `cd` — `z proj` jumps to your most-used directory. |
+| `direnv` | Per-project `.envrc` loader, auto-exports environment variables when you `cd` into a directory. |
+| `zoxide` | Smart `cd`, `z proj` jumps to your most-used directory. |
 | `eza` | Modern `ls` with icons, git integration, and tree mode. Aliased to `ls`/`ll`/`la`. |
-| `fzf` | Fuzzy finder — `Ctrl-T` for files, `Ctrl-R` for shell history, `Alt-C` for `cd`. |
+| `fzf` | Fuzzy finder, `Ctrl-T` for files, `Ctrl-R` for shell history, `Alt-C` for `cd`. |
 | `mise` | Per-project tool versions (replaces nvm/pyenv/rbenv). Drop a `.mise.toml` in your repo: `mise use node@20 python@3.12`. |
 | `atuin` | Searchable shell history. Up-arrow remains stock; `Ctrl-R` opens atuin's TUI search. Local-only by default. |
-| `tmate` | Instant pair-programming sessions — `haven tmate` prints an SSH URL for collaborators to join. |
+| `tmate` | Instant pair-programming sessions, `haven tmate` prints an SSH URL for collaborators to join. |
 | `rclone` | Sync workspace state to S3, B2, Drive, etc. Drives `haven backup`. |
 | `supercronic` | Cron-in-container. Runs `haven-logrotate` daily and warms the model cache every 30 min. |
 
-Tools come from `apt` (Ubuntu noble), vendor installers, or pinned tarballs — see [docs/development/tool-sourcing.md](development/tool-sourcing.md#tool-sourcing-in-the-workspace-image) for the sourcing strategy and how to add new tools.
+Tools come from `apt` (Ubuntu noble), vendor installers, or pinned tarballs, see [docs/development/tool-sourcing.md](development/tool-sourcing.md#tool-sourcing-in-the-workspace-image) for the sourcing strategy and how to add new tools.
 
 ---
 
@@ -203,7 +203,7 @@ haven tmate
 # both drive the same shell. End the session with Ctrl-d.
 ```
 
-Built on top of `tmate.io` — sessions are encrypted end-to-end, no account required.
+Built on top of `tmate.io`, sessions are encrypted end-to-end, no account required.
 
 ---
 
@@ -251,4 +251,4 @@ Bring your own dotfiles. On first boot only, the entrypoint clones `DOTFILES_REP
 DOTFILES_REPO=https://github.com/<you>/dotfiles.git
 ```
 
-If your install script writes `~/.zshrc` or `~/.tmux.conf`, it overrides the InferHaven defaults — your customisations win.
+If your install script writes `~/.zshrc` or `~/.tmux.conf`, it overrides the InferHaven defaults, your customisations win.

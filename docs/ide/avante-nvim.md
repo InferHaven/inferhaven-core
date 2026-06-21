@@ -1,8 +1,8 @@
-# avante.nvim — InferHaven Integration Guide
+# avante.nvim: InferHaven Integration Guide
 
 [avante.nvim](https://github.com/yetone/avante.nvim) is a Neovim plugin that brings AI assistance directly into your editor with a Cursor-like experience. It works with InferHaven's local Ollama instance and any configured cloud providers.
 
-Neovim 0.10+ is required. InferHaven's workspace image ships Neovim from the official GitHub releases — no manual upgrade needed.
+Neovim 0.10+ is required. InferHaven's workspace image ships Neovim from the official GitHub releases, no manual upgrade needed.
 
 ## Harness install (recommended)
 
@@ -26,11 +26,11 @@ avante        # open Zen Mode
 nvim          # standard Neovim (avante sidebar via <leader>aa)
 ```
 
-Inside Neovim, use `:AvanteModels` to switch between any local Ollama model or cloud provider — all installed local models appear as individual entries. Your selection persists across sessions.
+Inside Neovim, use `:AvanteModels` to switch between any local Ollama model or cloud provider, all installed local models appear as individual entries. Your selection persists across sessions.
 
 ## Zen Mode
 
-Zen Mode makes avante look and feel like a coding agent CLI — you type a prompt and get AI-assisted code changes — but it's Neovim underneath. You keep all your Vim keybindings, text objects, and any plugins you've already configured.
+Zen Mode makes avante look and feel like a coding agent CLI, you type a prompt and get AI-assisted code changes, but it's Neovim underneath. You keep all your Vim keybindings, text objects, and any plugins you've already configured.
 
 The `avante` command installed by the harness enters Zen Mode directly:
 
@@ -136,7 +136,7 @@ return {
 }
 ```
 
-All local models use `__inherited_from = "openai"` pointing at Ollama's OpenAI-compatible endpoint (`/v1`). This uses avante's fully-tested OpenAI provider code for native tool calling — no patches to avante internals are needed.
+All local models use `__inherited_from = "openai"` pointing at Ollama's OpenAI-compatible endpoint (`/v1`). This uses avante's fully-tested OpenAI provider code for native tool calling, no patches to avante internals are needed.
 
 Use `:AvanteSwitchProvider` to switch between any local model or cloud provider. Your selection persists across sessions and triggers a full avante restart with the new provider active.
 
@@ -149,15 +149,15 @@ Use `:AvanteSwitchProvider` to switch between any local model or cloud provider.
 | `GEMINI_API_KEY` | `gemini` | `gemini-2.0-flash` |
 | `OPENROUTER_API_KEY` | `openrouter` | `deepseek/deepseek-r1` |
 
-API keys are exported automatically via `~/.inferhaven` — no extra configuration needed.
+API keys are exported automatically via `~/.inferhaven`, no extra configuration needed.
 
 ## Customizing without losing your changes
 
 InferHaven rewrites `inferhaven-avante-config.lua` on every `haven pull`, `haven tune`, and `haven remove` to keep the full model list current. Three levels of control:
 
-**Change a cloud model** (e.g. swap `claude-sonnet-4-6` for `claude-opus-4-5`): edit the `model = "..."` value in the managed section — the changed value is carried forward on every sync.
+**Change a cloud model** (e.g. swap `claude-sonnet-4-6` for `claude-opus-4-5`): edit the `model = "..."` value in the managed section, the changed value is carried forward on every sync.
 
-**Add custom providers**: add them below the `-- _haven: user-providers` line inside the `providers = {}` table — anything in that section is preserved verbatim.
+**Add custom providers**: add them below the `-- _haven: user-providers` line inside the `providers = {}` table, anything in that section is preserved verbatim.
 
 ```lua
     -- _haven: user-providers — add custom providers below this line; haven will never overwrite this section
@@ -169,7 +169,7 @@ InferHaven rewrites `inferhaven-avante-config.lua` on every `haven pull`, `haven
     },
 ```
 
-**Change the default provider**: edit `provider = "ollama"` — the value is preserved on every sync.
+**Change the default provider**: edit `provider = "ollama"`, the value is preserved on every sync.
 
 **Full opt-out**: remove the `-- _haven: managed` first line. InferHaven will never touch the file again.
 
@@ -177,12 +177,12 @@ InferHaven rewrites `inferhaven-avante-config.lua` on every `haven pull`, `haven
 
 **"Connection refused":**
 
-- Inside the workspace, the endpoint must be `http://ollama:11434/v1` — not `http://localhost:11434/v1`
+- Inside the workspace, the endpoint must be `http://ollama:11434/v1`, not `http://localhost:11434/v1`
 - From a local machine, ensure the SSH tunnel is active
 
 **Timeout errors:**
 
-- Larger models take longer on first load — `timeout = 120000` is set by default in the managed sidecar
+- Larger models take longer on first load, `timeout = 120000` is set by default in the managed sidecar
 - Check `haven ps` to see if a model is currently loaded in GPU/RAM
 
 **Plugin not loading:**
@@ -204,4 +204,4 @@ Should show `__inherited_from   = "openai"` and `endpoint = "http://ollama:11434
 
 **Models that show thinking tokens (`<think>...</think>`) in chat (qwen3 family):**
 
-qwen3 models enable extended reasoning by default and stream thinking tokens into the response. Avante displays these as part of the output. This is model behavior — not an InferHaven issue. To suppress thinking, add `/no_think` at the start of your first message, or tune the model to disable thinking: `haven params <model> set thinking false` (if supported by your Ollama version).
+qwen3 models enable extended reasoning by default and stream thinking tokens into the response. Avante displays these as part of the output. This is model behavior, not an InferHaven issue. To suppress thinking, add `/no_think` at the start of your first message, or tune the model to disable thinking: `haven params <model> set thinking false` (if supported by your Ollama version).

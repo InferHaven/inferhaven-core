@@ -1,4 +1,4 @@
-# Cursor — InferHaven Integration Guide
+# Cursor: InferHaven Integration Guide
 
 [Cursor](https://cursor.com) is an AI-native code editor built on VS Code. You can configure Cursor to use InferHaven's local Ollama instance for fully private AI completions and chat.
 

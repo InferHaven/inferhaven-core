@@ -4,8 +4,8 @@ We take the security of InferHaven seriously. Thank you for helping keep
 InferHaven and its users safe.
 
 This policy covers **inferhaven-core** (the self-hostable Docker stack). For
-operational hardening guidance — access control, network exposure, TLS, secrets,
-and the deliberate trust boundaries of the stack — see
+operational hardening guidance (access control, network exposure, TLS, secrets,
+and the deliberate trust boundaries of the stack), see
 [`docs/security.md`](docs/security.md). Reading that document first will help you
 distinguish a genuine vulnerability from a documented, by-design behavior (see
 [Scope](#scope) below).
@@ -33,8 +33,8 @@ Instead, report privately:
 - **Subkeys:** encryption `2514 388B 8AF4 B051 BB43  64F9 3103 8F68 3461 7D60`,
   signing `83BB 8610 7868 5655 60E4  52FE C075 355A E78E FD6D`
 
-The public key is published at, and should match across, all of these locations
-— verify the fingerprint above against at least one independent source before
+The public key is published at, and should match across, all of these locations.
+Verify the fingerprint above against at least one independent source before
 trusting it:
 
 - This repository: [`inferhaven_pub.asc`](inferhaven_pub.asc) (repo root)
@@ -43,7 +43,7 @@ trusting it:
 
 Encrypt your report to this key and send it to
 [lookout@inferhaven.com](mailto:lookout@inferhaven.com). (The key's user ID is
-`lighthouse@inferhaven.com` — this is the same organization key; the reporting
+`lighthouse@inferhaven.com`, the same organization key; the reporting
 inbox is `lookout@`.)
 
 **Import and verify:**
@@ -80,7 +80,7 @@ A `Good signature` line, made by signing subkey
 `83BB 8610 7868 5655 60E4  52FE C075 355A E78E FD6D`, means the file is authentic.
 
 GnuPG will also print **"This key is not certified with a trusted signature."**
-That is expected — it only means *you* have not personally certified our key, not
+That is expected. It only means *you* have not personally certified our key, not
 that anything is wrong with the signature. After you have checked the fingerprint
 above against an independent source, you can silence it with a local
 (non-exportable) certification:
@@ -93,21 +93,21 @@ gpg --lsign-key 499280D5D75E3A4F837C6A6885D8E0970D05CEC0
 
 A good report lets us reproduce and triage quickly. Where possible, include:
 
-- **Affected version(s)** — release tag, commit SHA, or `inferhaven-core`
+- **Affected version(s)**: release tag, commit SHA, or `inferhaven-core`
   Docker image tag.
-- **Component** — e.g. `workspace`, `code-server`, `caddy` config, a `haven`
+- **Component**: e.g. `workspace`, `code-server`, `caddy` config, a `haven`
   script, the optional cloud agent, or the entrypoint/sync logic.
-- **Clear description and impact** — what an attacker can do, and under what
+- **Clear description and impact**: what an attacker can do, and under what
   preconditions (network position, existing access, configuration).
-- **Steps to reproduce or a proof of concept** — exact commands, request
+- **Steps to reproduce or a proof of concept**: exact commands, request
   payloads, or a minimal `.env` / compose configuration.
-- **Supporting evidence** — relevant logs, screenshots, or exploit code.
-- **Your contact details** — so we can follow up. You may request anonymity
+- **Supporting evidence**: relevant logs, screenshots, or exploit code.
+- **Your contact details**: so we can follow up. You may request anonymity
   (see [Credits](#credits)).
 
 ## Scope
 
-**In scope** — vulnerabilities in code and configuration shipped by this
+**In scope**: vulnerabilities in code and configuration shipped by this
 repository:
 
 - The Docker stack as defined in `docker-compose.yml` and the
@@ -127,7 +127,7 @@ repository:
 - Upstream vulnerabilities in third-party components we package (Ollama,
   code-server, Caddy, the base OS image, language toolchains). Report those to
   the respective projects. If our **default configuration** of one of those
-  components is the problem, that *is* in scope — tell us.
+  components is the problem, that *is* in scope. Tell us.
 - Behavior of AI models pulled at runtime (model output, prompt injection
   against a model, etc.).
 - Findings that require pre-existing privileged access already documented as
@@ -138,7 +138,7 @@ repository:
 
 These are intentional trade-offs documented in
 [`docs/security.md`](docs/security.md). Please don't file them as
-vulnerabilities on their own — though a way to *escape* or *bypass* an intended
+vulnerabilities on their own, though a way to *escape* or *bypass* an intended
 boundary is in scope:
 
 - **The Ollama API (`/api/*`, `/v1/*`) is unauthenticated.** It is meant to be
@@ -153,7 +153,7 @@ boundary is in scope:
 A flaw that lets an attacker reach any of the above *without* the documented
 precondition (e.g. bypassing `ALLOWED_IPS`, spoofing the source IP that Caddy
 trusts, or breaking out of the intended network isolation) is a real
-vulnerability — please report it.
+vulnerability. Please report it.
 
 ## Process and timelines
 
@@ -170,7 +170,7 @@ We aim to:
 
 We follow coordinated disclosure. Please give us up to **90 days** from your
 initial report to release a fix before disclosing publicly. If the issue is
-being actively exploited, or if you need a different timeline, tell us — we will
+being actively exploited, or if you need a different timeline, tell us. We will
 work with you in good faith to agree on a schedule.
 
 We will publish an advisory (and patched release) when a fix is available, and
@@ -191,7 +191,7 @@ or ask law enforcement to investigate, researchers who:
 - Avoid privacy violations, data destruction, and service degradation
   (no denial-of-service, no exfiltration beyond what's needed to prove the
   issue).
-- Only test against systems they own or are explicitly authorized to test — do
+- Only test against systems they own or are explicitly authorized to test. Do
   **not** attack other operators' deployments.
 - Give us a reasonable window to remediate before public disclosure.
 

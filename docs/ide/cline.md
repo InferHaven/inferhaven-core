@@ -1,4 +1,4 @@
-# Cline — InferHaven Integration Guide
+# Cline: InferHaven Integration Guide
 
 [Cline](https://github.com/cline/cline) is an autonomous AI coding agent for VS Code that can read/write files, run terminal commands, and browse the web. You can configure it to use InferHaven's local Ollama instance for fully private, offline-capable AI assistance.
 
@@ -61,7 +61,7 @@ https://your-domain.com
 
 ## Recommended models
 
-Cline drives agentic loops — it needs reliable tool use and a context window large enough to hold file contents plus conversation history. Set the context window to at least **32 768 tokens** in Cline's model settings.
+Cline drives agentic loops, it needs reliable tool use and a context window large enough to hold file contents plus conversation history. Set the context window to at least **32 768 tokens** in Cline's model settings.
 
 | Model | Size | Note |
 | ------- | ------------- | ---------- |
@@ -99,7 +99,7 @@ For local models, enable **Compact Prompts** in Cline Settings → Features → 
 
 **Slow or stalled responses:**
 
-- Large models on CPU are slow — prefer 7B on CPU-only setups
+- Large models on CPU are slow, prefer 7B on CPU-only setups
 - Check available VRAM: `docker exec inferhaven-ollama nvidia-smi` (GPU setups)
 - Monitor Ollama logs: `make logs s=ollama`
 

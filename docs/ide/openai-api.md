@@ -1,6 +1,6 @@
-# Generic OpenAI API — InferHaven Integration Guide
+# Generic OpenAI API: InferHaven Integration Guide
 
-InferHaven's Ollama instance exposes an **OpenAI-compatible API**. This means any tool, library, or IDE extension that can talk to the OpenAI API can be pointed at InferHaven instead — with zero code changes.
+InferHaven's Ollama instance exposes an **OpenAI-compatible API**. This means any tool, library, or IDE extension that can talk to the OpenAI API can be pointed at InferHaven instead, with zero code changes.
 
 ## API Endpoints
 
@@ -158,5 +158,5 @@ https://dev.example.com/api/tags
 
 - **No API key required.** Ollama doesn't authenticate by default. For production, use SSH tunnels or restrict network access.
 - **Streaming works.** Add `"stream": true` to requests for streaming responses.
-- **Model names use Ollama format.** Use `qwen2.5-coder:7b` not `gpt-4` — the model name must match what's pulled in Ollama.
+- **Model names use Ollama format.** Use `qwen2.5-coder:7b` not `gpt-4`, the model name must match what's pulled in Ollama.
 - **Context window varies by model.** Most coding models support 4K-32K tokens. Check model card for specifics.

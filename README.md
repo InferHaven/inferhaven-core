@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/img/demo.gif" alt="InferHaven demo — SSH in, ask a local model to extend the stack, watch it run" width="820" />
+  <img src="docs/img/demo.gif" alt="InferHaven demo: SSH in, ask a local model to extend the stack, watch it run" width="820" />
 </p>
 
 <p align="center">
@@ -40,30 +40,30 @@
 
 ## What is InferHaven?
 
-InferHaven is your own private AI coding server: a self-hostable Docker stack that turns hardware you control into a private, secure dev environment. It runs Ollama for local inference and hands you a pre-configured workspace over SSH and a web IDE — with your own models, and up to ten coding assistants already wired to them. It isn't another coding assistant competing for your editor; it's the box they all run in.
+InferHaven is your own private AI coding server: a self-hostable Docker stack that turns hardware you control into a private, secure dev environment. It runs Ollama for local inference and hands you a pre-configured workspace over SSH and a web IDE, with your own models and up to ten coding assistants already wired to them. It isn't another coding assistant competing for your editor; it's the box they all run in.
 
-- **Local AI inference** via Ollama — OpenAI-compatible API, any open-weight model
-- **Complete privacy** — local code and weights never leave your machine using local models
-- **Terminal-first workspace** — SSH (+ mosh for connection-resilient remote shells), tmux with auto-save, zsh + Starship, neovim, ripgrep, fzf, supercronic, lazygit, git-delta, direnv, zoxide, eza, mise, atuin, tmate
-- **Web IDE** — VS Code in the browser via code-server
-- **Coding harnesses** — Claude Code, OpenCode, Aider, Qwen Code, Amp, Gemini CLI, Goose, Continue CLI, Avante — can be auto-installed and pre-configured from `.env`
-- **GPU support** — NVIDIA and AMD GPUs supported out of the box
-- **Cloud models** — use any popular provider's models instead of, or alongside private local models
-- **Real security** — leverages Docker for a secure dev environment; SSH is key-only
-- **Fast, reproducible builds** — BuildKit cache mounts make warm rebuilds < 30s
-- **Multi-user** — Provision extra users with their own SSH keys via `.env`
-- **Devcontainer-ready** — works with VS Code Dev Containers, GitHub Codespaces, DevPod, JetBrains Gateway, and headless `@devcontainers/cli`. Two flavors ship: a lightweight Codespaces flavor for CPU-only quickstarts and a full-stack flavor that boots the same production services (web IDE + Caddy) with optional GPU passthrough. Nested devcontainers (dev-in-prod) supported via the `haven devcontainer` command.
-- **Backup & restore** — `haven backup configure` sets up an rclone remote interactively; `haven backup push <remote:path>` snapshots home directory and harness configs.
+- **Local AI inference** via Ollama: OpenAI-compatible API, any open-weight model
+- **Complete privacy**: local code and weights never leave your machine when you use local models
+- **Terminal-first workspace**: SSH (+ mosh for connection-resilient remote shells), tmux with auto-save, zsh + Starship, neovim, ripgrep, fzf, supercronic, lazygit, git-delta, direnv, zoxide, eza, mise, atuin, tmate
+- **Web IDE**: VS Code in the browser via code-server
+- **Coding harnesses**: Claude Code, OpenCode, Aider, Qwen Code, Amp, Gemini CLI, Goose, Continue CLI, Pi, and Avante, all of which can be auto-installed and pre-configured from `.env`
+- **GPU support**: NVIDIA and AMD GPUs supported out of the box
+- **Cloud models**: use any popular provider's models instead of, or alongside, your private local models
+- **Real security**: leverages Docker for a secure dev environment; SSH is key-only
+- **Fast, reproducible builds**: BuildKit cache mounts make warm rebuilds < 30s
+- **Multi-user**: provision extra users with their own SSH keys via `.env`
+- **Devcontainer-ready**: works with VS Code Dev Containers, GitHub Codespaces, DevPod, JetBrains Gateway, and headless `@devcontainers/cli`. Two flavors ship: a lightweight Codespaces flavor for CPU-only quickstarts and a full-stack flavor that boots the same production services (web IDE + Caddy) with optional GPU passthrough. Nested devcontainers (dev-in-prod) supported via the `haven devcontainer` command.
+- **Backup & restore**: `haven backup configure` sets up an rclone remote interactively; `haven backup push <remote:path>` snapshots home directory and harness configs.
 
 ## Why not just wire it up myself?
 
-You can — and if you do, you've built the first couple of layers of what InferHaven ships whole. The DIY path is Ollama, plus a web UI, plus each assistant's config, plus a reverse proxy, HTTPS, SSH, and backups: a weekend to assemble and a maintenance tab that never closes, since every assistant's config drifts the moment you pull a new model.
+You can, and if you do, you've built the first couple of layers of what InferHaven ships whole. The DIY path is Ollama, plus a web UI, plus each assistant's config, plus a reverse proxy, HTTPS, SSH, and backups: a weekend to assemble and a maintenance tab that never closes, since every assistant's config drifts the moment you pull a new model.
 
-InferHaven is those same parts, assembled and kept in tune. `docker compose up -d` brings the whole stack up, and seven assistants (`opencode`, `aider`, `qwencode`, `pi`, `goose`, `continue`, `avante`) re-render their config automatically on every model pull. It's still just Docker — the exit door is the same size as the front door.
+InferHaven is those same parts, assembled and kept in tune. `docker compose up -d` brings the whole stack up, and seven assistants (`opencode`, `aider`, `qwencode`, `pi`, `goose`, `continue`, `avante`) re-render their config automatically on every model pull. It's still just Docker. The exit door is the same size as the front door.
 
 ## Quick Start
 
-> **Just want to try it first?** No install needed — click **[Open in GitHub Codespaces](https://github.com/codespaces/new?hide_repo_select=true&repo=InferHaven/inferhaven-core)** (badge above). It boots the CPU-only flavor with a small model (`qwen3:4b`) and `opencode` + `aider` preinstalled. For real use — GPU, web IDE, your own models — self-host below.
+> **Just want to try it first?** No install needed: click **[Open in GitHub Codespaces](https://github.com/codespaces/new?hide_repo_select=true&repo=InferHaven/inferhaven-core)** (badge above). It boots the CPU-only flavor with a small model (`qwen3:4b`) and `opencode` + `aider` preinstalled. For real use (GPU, web IDE, your own models), self-host below.
 
 **Requirements:** Linux, Docker, Docker Compose v2.
 
@@ -87,7 +87,7 @@ Once running:
 | Web IDE | `http://localhost` |
 | Ollama / OpenAI API | `http://localhost` / `http://localhost/v1/` |
 
-> Ollama and code-server exposed ports are commented out in `docker-compose.yml` by default — all traffic routes through Caddy. To expose them directly, uncomment the `ports:` blocks for the `ollama` and `code-server` services (routes around Caddy security).
+> Ollama and code-server exposed ports are commented out in `docker-compose.yml` by default. All traffic routes through Caddy. To expose them directly, uncomment the `ports:` blocks for the `ollama` and `code-server` services (routes around Caddy security).
 
 For a step-by-step walkthrough see **[docs/quickstart.md](docs/quickstart.md)**.
 
@@ -107,7 +107,7 @@ All configuration lives in `.env` (copy from `.env.example`).
 | `HAVEN_CTX` | `32768` | Context window target for auto-tune on pull. Use `16384` on memory-constrained hardware |
 | `HAVEN_AUTO_TUNE` | `1` | Auto-run `haven tune` after every pull / pullback and for `DEFAULT_MODEL` on boot. Set `0` to disable |
 | `HAVEN_FORCE_FAMILY` | *(empty)* | Bypass family detection in `haven tune`. Values: `qwen3` `qwen25` `llama3` `deepseek` `mistral` `phi4` `codellama` `gemma`. Use for custom finetunes you know are template-compatible |
-| `GOOSE_CTX_LIMIT` | `32768` | Maximum context passed to Goose sessions. Caps the KV-cache budget regardless of model tuning — reduce to `16384` if you see 30 s stream stalls on constrained hardware |
+| `GOOSE_CTX_LIMIT` | `32768` | Maximum context passed to Goose sessions. Caps the KV-cache budget regardless of model tuning; reduce to `16384` if you see 30 s stream stalls on constrained hardware |
 | `ANTHROPIC_API_KEY` | *(empty)* | For Claude Code, Aider (claude backend), Amp |
 | `OPENAI_API_KEY` | *(empty)* | For OpenCode, Aider (openai backend) |
 | `GEMINI_API_KEY` | *(empty)* | For Gemini CLI |
@@ -123,7 +123,7 @@ All configuration lives in `.env` (copy from `.env.example`).
 
 ### Coding Assistant Harnesses
 
-Set `INSTALL_ASSISTANTS` and any API keys in `.env` before the first start. Harnesses are installed in the background — SSH is available immediately and they are ready within a minute or two.
+Set `INSTALL_ASSISTANTS` and any API keys in `.env` before the first start. Harnesses are installed in the background. SSH is available immediately and they are ready within a minute or two.
 
 ```bash
 INSTALL_ASSISTANTS=claudecode,opencode,aider
@@ -132,7 +132,7 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 Supported Harnesses: `claudecode`, `opencode`, `aider`, `qwencode`, `amp`, `gemini`, `pi`, `goose`, `continue`, `avante`
 
-When `opencode`, `aider`, `qwencode`, `pi`, `goose`, `continue`, or `avante` is included, local Ollama models are auto-configured and kept in sync — every `haven pull`, `haven tune`, and `haven remove` updates all harness configs immediately. Most harnesses use an internal sentinel so InferHaven never touches user-customised configs; `continue` syncs whenever `cn` is installed (opt out: `touch ~/.continue/.no-autosync`).
+When `opencode`, `aider`, `qwencode`, `pi`, `goose`, `continue`, or `avante` is included, local Ollama models are auto-configured and kept in sync: every `haven pull`, `haven tune`, and `haven remove` updates all harness configs immediately. Most harnesses use an internal sentinel so InferHaven never touches user-customised configs; `continue` syncs whenever `cn` is installed (opt out: `touch ~/.continue/.no-autosync`).
 
 See **[docs/harnesses.md](docs/harnesses.md)** for opt-out, per-project override instructions, and for per-harness setup details and recommended models.
 
@@ -144,7 +144,7 @@ Single key (no quotes needed):
 AUTHORIZED_KEYS=ssh-ed25519 AAAA... user@host
 ```
 
-Multiple keys — wrap in double quotes with a real newline:
+Multiple keys, wrap in double quotes with a real newline:
 
 ```bash
 AUTHORIZED_KEYS="ssh-ed25519 AAAA...key1 user@host
@@ -155,7 +155,7 @@ ssh-ed25519 AAAA...key2 user2@host"
 
 `haven` is InferHaven's unified CLI. It works in two contexts:
 
-**From the host** (repo directory) — manages Docker services:
+**From the host** (repo directory) manages Docker services:
 
 ```bash
 ./scripts/haven up                   # start all services
@@ -172,7 +172,7 @@ ssh-ed25519 AAAA...key2 user2@host"
 ./scripts/haven ide                  # show web IDE URL
 ```
 
-**Inside the workspace** (after SSH-ing in) — full feature set:
+**Inside the workspace** (after SSH-ing in): full feature set:
 
 ```bash
 # Models
@@ -271,7 +271,7 @@ haven ide                               # show web IDE URL
 haven help                              # show all commands
 ```
 
-For workspace-specific features — model tuning, background downloads, Starship prompt, persistent packages, and status bar alerts — see **[docs/workspace.md](docs/workspace.md)**.
+For workspace-specific features (model tuning, background downloads, Starship prompt, persistent packages, and status bar alerts), see **[docs/workspace.md](docs/workspace.md)**.
 
 ## Architecture
 
@@ -279,7 +279,7 @@ Four Docker services in a bridge network:
 
 | Service | Image | Purpose |
 | --------- | ------- | --------- |
-| `ollama` | `ollama/ollama` | AI inference — OpenAI-compatible API on :11434 |
+| `ollama` | `ollama/ollama` | AI inference, OpenAI-compatible API on :11434 |
 | `workspace` | Custom build | SSH terminal (:2222) + `haven` CLI + harnesses |
 | `code-server` | `linuxserver/code-server` | VS Code in Browser |
 | `caddy` | `caddy:2-alpine` | Reverse proxy, auto-HTTPS |
@@ -310,17 +310,17 @@ Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before
 
 ## Security
 
-Found a vulnerability? **Don't open a public issue** — report it privately per our [Security Policy](SECURITY.md) (email [lookout@inferhaven.com](mailto:lookout@inferhaven.com)). For sensitive reports, encrypt to our OpenPGP key ([`inferhaven_pub.asc`](inferhaven_pub.asc), also at <https://inferhaven.com/pgpkey.asc>):
+Found a vulnerability? **Don't open a public issue.** Report it privately per our [Security Policy](SECURITY.md) (email [lookout@inferhaven.com](mailto:lookout@inferhaven.com)). For sensitive reports, encrypt to our OpenPGP key ([`inferhaven_pub.asc`](inferhaven_pub.asc), also at <https://inferhaven.com/pgpkey.asc>):
 
 > **OpenPGP fingerprint:** `4992 80D5 D75E 3A4F 837C  6A68 85D8 E097 0D05 CEC0`
 
-For deployment hardening — access control, network exposure, TLS, secrets, and the stack's intended trust boundaries — see [docs/security.md](docs/security.md).
+For deployment hardening (access control, network exposure, TLS, secrets, and the stack's intended trust boundaries), see [docs/security.md](docs/security.md).
 
 ## AI-assisted development
 
-AI assistants are part of how InferHaven is built. We use them to accelerate the work — drafting code, refactoring, generating tests, and writing documentation.
+AI assistants are part of how InferHaven is built. We use them to accelerate the work: drafting code, refactoring, generating tests, and writing documentation.
 
-What doesn't change: every change is reviewed, understood, and manually tested by a human before it merges. InferHaven is owned and maintained by its human author(s) — AI is a tool we use, not the author.
+What doesn't change: every change is reviewed, understood, and manually tested by a human before it merges. InferHaven is owned and maintained by its human author(s). AI is a tool we use, not the author.
 
 ## License
 
@@ -328,18 +328,18 @@ InferHaven Core is licensed under the **Functional Source License 1.1 with Apach
 
 **What this means in practice:**
 
-- ✅ You can use, modify, and self-host InferHaven Core for any purpose — personal, commercial, internal, or research.
+- ✅ You can use, modify, and self-host InferHaven Core for any purpose: personal, commercial, internal, or research.
 - ✅ Enterprises can deploy it on their own infrastructure, integrate it with internal tools, and modify it as needed.
 - ✅ Consultants and integrators can offer professional services around it.
 - ❌ You cannot offer a commercial managed-hosting service that competes with InferHaven Cloud (until each version's two-year window expires).
-- 🔄 Two years after each version's release, that version automatically converts to the Apache License 2.0 — a fully permissive open-source license with no restrictions.
+- 🔄 Two years after each version's release, that version automatically converts to the Apache License 2.0, a fully permissive open-source license with no restrictions.
 
 See the [LICENSE](./LICENSE) file for full terms, [docs/licensing.md](./docs/licensing.md) for a plain-language explainer, and [fsl.software](https://fsl.software/) for background on the license.
 
 ---
 
 <p align="center">
-  <strong>InferHaven</strong> — A safe haven for AI inference.<br>
+  <strong>InferHaven</strong> · A safe haven for AI inference.<br>
   <a href="https://inferhaven.com">Website</a> •
   <a href="https://discord.gg/X5htGNnEh5">Discord</a> •
   <a href="https://twitter.com/InferHaven">Twitter</a>

@@ -49,7 +49,7 @@ See [gpu-setup.md](gpu-setup.md) for configuring the `docker-compose.yml` proper
 docker compose up -d
 ```
 
-First startup builds the workspace image and downloads the default model — typically 2–5 minutes. Watch progress:
+First startup builds the workspace image and downloads the default model, typically 2-5 minutes. Watch progress:
 
 ```bash
 docker compose logs -f
@@ -102,8 +102,8 @@ aider --model ollama/qwen2.5-coder:7b
 
 ## What's next?
 
-- **[Workspace reference](workspace.md)** — model tuning, background downloads, bare-metal-equivalent tools (lazygit, delta, direnv, zoxide, eza, mise, atuin, tmate), `haven service|limits|gpu-info`, multi-user, dotfiles bootstrap, backup
-- **[Harnesses & model recommendations](harnesses.md)** — per-harness setup and model tables
-- **[GPU setup](gpu-setup.md)** — run larger, faster models
-- **IDE integrations** — [Continue.dev](ide/continue.md), [Cline](ide/cline.md), [Cursor](ide/cursor.md), [avante.nvim](ide/avante-nvim.md)
-- **[Contributing](../CONTRIBUTING.md)** — tool sourcing strategy, version-bump flow
+- **[Workspace reference](workspace.md)**: model tuning, background downloads, bare-metal-equivalent tools (lazygit, delta, direnv, zoxide, eza, mise, atuin, tmate), `haven service|limits|gpu-info`, multi-user, dotfiles bootstrap, backup
+- **[Harnesses & model recommendations](harnesses.md)**: per-harness setup and model tables
+- **[GPU setup](gpu-setup.md)**: run larger, faster models
+- **IDE integrations**: [Continue.dev](ide/continue.md), [Cline](ide/cline.md), [Cursor](ide/cursor.md), [avante.nvim](ide/avante-nvim.md)
+- **[Contributing](../CONTRIBUTING.md)**: tool sourcing strategy, version-bump flow

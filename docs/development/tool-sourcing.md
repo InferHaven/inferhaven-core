@@ -1,6 +1,6 @@
 # Workspace Tool Sourcing
 
-This document explains how the workspace image sources its tooling — which strategy is used for which tools, why, and how to add or bump them.
+This document explains how the workspace image sources its tooling, which strategy is used for which tools, why, and how to add or bump them.
 
 ## Tool sourcing in the workspace image
 
@@ -16,10 +16,10 @@ The workspace `Dockerfile` uses **four** install strategies, ordered by maintena
 
 Adding a new tool:
 
-1. **First check apt** — `curl -s https://packages.ubuntu.com/noble/<pkg> \| grep -oE '<title>[^<]+'` confirms availability. If shipped, append to the apt list — done.
+1. **First check apt**: `curl -s https://packages.ubuntu.com/noble/<pkg> \| grep -oE '<title>[^<]+'` confirms availability. If shipped, append to the apt list, done.
 2. If not in apt, prefer a **vendor installer** (`https://<vendor>.run` or signed `install.sh`) over a tarball.
 3. Use **`/releases/latest/download/`** only when the asset name is stable across releases.
-4. Pin a **`ARG`** only if the user's workflow breaks across minor versions (rare — e.g. neovim plugins, language compilers).
+4. Pin a **`ARG`** only if the user's workflow breaks across minor versions (rare, e.g. neovim plugins, language compilers).
 
 ## Bumping pinned tool versions
 
@@ -36,7 +36,7 @@ When a pin needs to move:
    ```
 
 2. Edit the corresponding `ARG <NAME>_VERSION=...` near the top of `docker/workspace/Dockerfile`.
-3. Rebuild: `make rebuild-fast` (BuildKit cache mounts — only the bumped binary re-downloads).
+3. Rebuild: `make rebuild-fast` (BuildKit cache mounts, only the bumped binary re-downloads).
 4. Verify inside the container: `ssh -p 2222 haven@localhost <bin> --version`.
 5. Open a PR titled `chore(workspace): bump <tool> to <version>` with the changelog link in the body.
 
