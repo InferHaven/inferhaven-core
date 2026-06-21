@@ -35,7 +35,7 @@ jobs:
       # Bump deliberately; pinning keeps the gate reproducible across runner images.
       SHELLCHECK_VERSION: v0.10.0
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install shellcheck (pinned)
         run: |
